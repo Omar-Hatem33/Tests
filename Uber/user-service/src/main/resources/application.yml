@@ -1,0 +1,93 @@
+#spring:
+#  autoconfigure:
+#    exclude:${SPRING_AUTOCONFIGURE_EXCLUDE:org.springframework.boot.mongodb.autoconfigure.MongoAutoConfiguration,org.springframework.boot.data.mongodb.autoconfigure.DataMongoAutoConfiguration,org.springframework.boot.data.mongodb.autoconfigure.DataMongoRepositoriesAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration,org.springframework.boot.cache.autoconfigure.CacheAutoConfiguration}
+#  application:
+#    name: user-service
+#  datasource:
+#    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/uberdb}
+#    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+#    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+#  jpa:
+#    hibernate:
+#      ddl-auto: update
+#    show-sql: true
+#    properties:
+#      hibernate:
+#        dialect: org.hibernate.dialect.PostgreSQLDialect
+#  data:
+#    redis:
+#      host: ${SPRING_DATA_REDIS_HOST:localhost}
+#      port: ${SPRING_DATA_REDIS_PORT:6379}
+#  mongodb:
+#    uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/auth_events}
+#
+#server:
+#  port: 8080
+#
+#jwt:
+#  secret: ${JWT_SECRET:dev-only-secret-change-me-32-chars-minimum-1234567890ABCDEF}
+#  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+spring:
+  application:
+    name: user-service
+
+  main:
+    lazy-initialization: ${SPRING_LAZY_INIT:true}
+
+  cache:
+    redis:
+      key-prefix: "user-service::"
+
+  datasource:
+    url: jdbc:postgresql://user-postgres:5432/uberdb-users
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+  mongodb:
+    uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/auth_events}
+
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+server:
+  port: 8080
+
+feign:
+  user-service:
+    url: http://user-service:8080
+  driver-service:
+    url: http://driver-service:8080
+  ride-service:
+    url: http://ride-service:8080
+  location-service:
+    url: http://location-service:8080
+  payment-service:
+    url: http://payment-service:8080
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-secret-change-me-32-chars-minimum-1234567890ABCDEF}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}

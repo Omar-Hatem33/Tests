@@ -1,0 +1,44 @@
+package com.team21.uber.payment.auth;
+
+public final class JwtConfigurationManager {
+
+    private static volatile JwtConfigurationManager instance;
+
+    private volatile String secret;
+    private volatile long   expirationMs;
+
+    private JwtConfigurationManager() {
+        String envSecret = System.getenv("JWT_SECRET");
+        this.secret = (envSecret == null || envSecret.isBlank())
+                ? "bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u"
+                : envSecret;
+
+        String envExp = System.getenv("JWT_EXPIRATION_MS");
+        long parsed = 86_400_000L;
+        if (envExp != null && !envExp.isBlank()) {
+            try { parsed = Long.parseLong(envExp); } catch (NumberFormatException ignored) {}
+        }
+        this.expirationMs = parsed;
+    }
+
+    public static JwtConfigurationManager getInstance() {
+        JwtConfigurationManager local = instance;
+        if (local == null) {
+            synchronized (JwtConfigurationManager.class) {
+                local = instance;
+                if (local == null) {
+                    instance = local = new JwtConfigurationManager();
+                }
+            }
+        }
+        return local;
+    }
+
+    public static void initConfig(String secret, long expirationMs) {
+        JwtConfigurationManager mgr = getInstance();   // ensure instance exists
+        mgr.secret       = secret;
+        mgr.expirationMs = expirationMs;
+    }
+    public String getSecret()      { return secret; }
+    public long   getExpirationMs(){ return expirationMs; }
+}

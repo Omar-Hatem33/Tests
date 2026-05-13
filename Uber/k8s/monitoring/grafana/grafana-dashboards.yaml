@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  user-dashboard.json: |
+    {
+      "title": "User Service Dashboard",
+      "uid": "user-service-dash",
+      "panels": [],
+      "schemaVersion": 38,
+      "version": 1
+    }
+  driver-dashboard.json: |
+    {
+      "title": "Driver Service Dashboard",
+      "uid": "driver-service-dash",
+      "panels": [],
+      "schemaVersion": 38,
+      "version": 1
+    }
+  ride-dashboard.json: |
+    {
+      "title": "Ride Service Dashboard",
+      "uid": "ride-service-dash",
+      "panels": [],
+      "schemaVersion": 38,
+      "version": 1
+    }
+  location-dashboard.json: |
+    {
+      "title": "Location Service Dashboard",
+      "uid": "location-service-dash",
+      "panels": [],
+      "schemaVersion": 38,
+      "version": 1
+    }
+  payment-dashboard.json: |
+    {
+      "title": "Payment Service Dashboard",
+      "uid": "payment-service-dash",
+      "panels": [],
+      "schemaVersion": 38,
+      "version": 1
+    }

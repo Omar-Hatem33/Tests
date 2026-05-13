@@ -1,0 +1,67 @@
+spring:
+  cache:
+    type: redis
+  application:
+    name: ride-service
+  datasource:
+    url: jdbc:postgresql://ride-postgres:5432/uberdb-rides
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  mongodb:
+    uri: ${SPRING_DATA_MONGODB_URI:mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin}
+
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin}
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:redispass}
+    neo4j:
+      repositories:
+        enabled: true
+  neo4j:
+    uri: ${SPRING_NEO4J_URI:bolt://localhost:7687}
+    authentication:
+      username: ${SPRING_NEO4J_AUTHENTICATION_USERNAME:neo4j}
+      password: ${SPRING_NEO4J_AUTHENTICATION_PASSWORD:neo4jpass}
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+server:
+  port: 8080
+
+feign:
+  user-service:
+    url: http://user-service:8080
+  driver-service:
+    url: http://driver-service:8080
+  ride-service:
+    url: http://ride-service:8080
+  location-service:
+    url: http://location-service:8080
+  payment-service:
+    url: http://payment-service:8080
+
+
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-secret-change-me-32-chars-minimum-1234567890ABCDEF}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}

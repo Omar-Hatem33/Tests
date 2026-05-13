@@ -1,0 +1,224 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: uber-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
+  mongo:
+    image: mongo:latest
+    container_name: uber-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpass
+      MONGO_INITDB_DATABASE: ubermongo
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    container_name: uber-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass redispass --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redispass", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: elasticsearch:9.0.3
+    container_name: uber-elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+
+  neo4j:
+    image: neo4j:latest
+    container_name: uber-neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/neo4jpass
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_heap_initial__size: 256m
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD", "neo4j", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: uber-cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: ubercluster
+      CASSANDRA_DC: datacenter1
+      CASSANDRA_KEYSPACE: uberks
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+      JVM_OPTS: "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m -Dcassandra.skip_wait_for_gossip_to_settle=0 -Dcassandra.ring_delay_ms=1000 -Dcassandra.write_request_timeout_in_ms=30000"
+      JVM_OPTS_EXTRA: "-Xms400m -Xmx400m -XX:MaxDirectMemorySize=200m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:ReservedCodeCacheSize=64m"
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE KEYSPACES'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: redispass
+      JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
+      JWT_EXPIRATION: 86400000
+      JAVA_TOOL_OPTIONS: "-XX:TieredStopAtLevel=1 -Xshare:auto"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  driver-service:
+    build: ./driver-service
+    ports:
+      - "8082:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: redispass
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
+      JWT_EXPIRATION: 86400000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  ride-service:
+    build: ./ride-service
+    ports:
+      - "8083:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: redispass
+      SPRING_DATA_NEO4J_URI: bolt://neo4j:7687
+      SPRING_NEO4J_URI: bolt://neo4j:7687
+      SPRING_NEO4J_AUTHENTICATION_USERNAME: neo4j
+      SPRING_NEO4J_AUTHENTICATION_PASSWORD: neo4jpass
+      JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
+      JWT_EXPIRATION: 86400000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+
+  location-service:
+    build: ./location-service
+    ports:
+      - "8084:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: redispass
+      SPRING_CASSANDRA_CONTACT_POINTS: cassandra
+      SPRING_CASSANDRA_LOCAL_DATACENTER: datacenter1
+      JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
+      JWT_EXPIRATION: 86400000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      cassandra:
+        condition: service_healthy
+
+  payment-service:
+    build: ./payment-service
+    ports:
+      - "8085:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: redispass
+      JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
+      JWT_EXPIRATION: 86400000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+
+volumes:
+  pgdata:
+  mongo-data:
+  es-data:
+  neo4j-data:
+  cassandra-data:

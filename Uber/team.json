@@ -1,0 +1,92 @@
+[
+  {
+    "studentId":"55-22144",
+    "name":"Monica Farid",
+    "githubUsername":"Mokaa71",
+    "service":"user-service"
+  },
+  {
+    "studentId":"55-4909",
+    "name":"Menna Yehia",
+    "githubUsername":"MennaYehiaHassan",
+    "service":"user-service"
+  },
+  {
+    "studentId":"55-5683",
+    "name":"Shahd Mohamed",
+    "githubUsername":"ShahdMatar",
+    "service":"user-service"
+  },
+  {
+    "studentId":"55-9108",
+    "name":"Malak Osama",
+    "githubUsername":"malak-2003",
+    "service":"payment-service"
+  },
+  {
+    "studentId":"55-5083",
+    "name":"Farah Khaled",
+    "githubUsername":"farah-khaled",
+    "service":"payment-service"
+  },
+  {
+    "studentId":"55-3099",
+    "name":"Omar Hany Seif",
+    "githubUsername":"Omar-Seif",
+    "service":"payment-service"
+  },
+  {
+    "studentId":"55-11310",
+    "name":"Aya Allam",
+    "githubUsername":"AyaAllamm087",
+    "service":"driver-service"
+  },
+  {
+    "studentId":"55-5742",
+    "name":"Tasneem Khalil",
+    "githubUsername":"tasneem-t",
+    "service":"driver-service"
+  },
+  {
+    "studentId":"55-8819",
+    "name":"Omar Ahmed El Hussein",
+    "githubUsername":"OmarNasr67",
+    "service":"driver-service"
+  },
+  {
+    "studentId":"55-13503",
+    "name":"Seif Wael",
+    "githubUsername":"Seif-waell",
+    "service":"ride-service"
+  },
+  {
+    "studentId":"55-7682",
+    "name":"Omar Hatem",
+    "githubUsername":"Omar-Hatem33",
+    "service":"ride-service"
+  },
+  {
+    "studentId":"55-9382",
+    "name":"Belal Houssameldin",
+    "githubUsername":"belal-houssameldin",
+    "service":"ride-service"
+  },
+  {
+    "studentId":"55-22784",
+    "name":"Amr Adly",
+    "githubUsername":"Amory199",
+    "service":"location-service"
+  },
+  {
+    "studentId":"55-18371",
+    "name":"Farida Ahmed",
+    "githubUsername":"Cyber-Strawberry",
+    "service":"location-service"
+  },
+  {
+    "studentId":"55-8812",
+    "name":"Kariem Sherif",
+    "githubUsername":"kariem435",
+    "service":"location-service"
+  }
+]

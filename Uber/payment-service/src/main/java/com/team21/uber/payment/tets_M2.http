@@ -1,0 +1,215 @@
+###############################################
+### PRE-REQUISITE: Get fresh token
+###############################################
+
+### Step 1: Login as ADMIN - copy token from response
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "adminpass"
+}
+
+###############################################
+# Replace ADMIN_TOKEN below with token above
+###############################################
+
+###############################################
+# SETUP: Seed payment audit events in MongoDB
+# S5-F11 reads from payment_audit_trail.
+# Events are written by Observer when payments
+# are created/refunded/failed.
+# We seed by creating payments and triggering
+# write operations that fire the Observer.
+###############################################
+
+### Setup 1: Create COMPLETED CREDIT_CARD payment (April)
+### Observer should write CREATED event to MongoDB
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgyMDI3LCJleHAiOjE3NzgwNjg0Mjd9.Brvd6EoneYmDnggns-cGqfpkZcjXSwMDOSFnpl9jaxc
+
+{
+  "rideId": 201,
+  "userId": 1,
+  "amount": 100.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED",
+  "createdAt": "2026-04-05T10:00:00"
+}
+
+###
+
+### Setup 2: Create another COMPLETED CREDIT_CARD payment (April)
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgyMDI3LCJleHAiOjE3NzgwNjg0Mjd9.Brvd6EoneYmDnggns-cGqfpkZcjXSwMDOSFnpl9jaxc
+
+{
+  "rideId": 202,
+  "userId": 1,
+  "amount": 150.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED",
+  "createdAt": "2026-04-10T10:00:00"
+}
+
+###
+
+### Setup 3: Create COMPLETED CASH payment (April)
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgyMDI3LCJleHAiOjE3NzgwNjg0Mjd9.Brvd6EoneYmDnggns-cGqfpkZcjXSwMDOSFnpl9jaxc
+
+{
+  "rideId": 203,
+  "userId": 2,
+  "amount": 75.0,
+  "method": "CASH",
+  "status": "COMPLETED",
+  "createdAt": "2026-04-15T10:00:00"
+}
+
+###
+
+### Setup 4: Create FAILED CREDIT_CARD payment (April)
+### This tests the failure count
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgyMDI3LCJleHAiOjE3NzgwNjg0Mjd9.Brvd6EoneYmDnggns-cGqfpkZcjXSwMDOSFnpl9jaxc
+
+{
+  "rideId": 204,
+  "userId": 1,
+  "amount": 200.0,
+  "method": "CREDIT_CARD",
+  "status": "FAILED",
+  "createdAt": "2026-04-20T10:00:00"
+}
+
+###
+
+### Setup 5: Create FAILED WALLET payment (April)
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgyMDI3LCJleHAiOjE3NzgwNjg0Mjd9.Brvd6EoneYmDnggns-cGqfpkZcjXSwMDOSFnpl9jaxc
+
+{
+  "rideId": 205,
+  "userId": 2,
+  "amount": 50.0,
+  "method": "WALLET",
+  "status": "FAILED",
+  "createdAt": "2026-04-25T10:00:00"
+}
+
+###
+
+### Setup 6: Create COMPLETED payment in March (outside April range)
+### Should NOT appear in April queries
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgyMDI3LCJleHAiOjE3NzgwNjg0Mjd9.Brvd6EoneYmDnggns-cGqfpkZcjXSwMDOSFnpl9jaxc
+
+{
+  "rideId": 206,
+  "userId": 1,
+  "amount": 300.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED",
+  "createdAt": "2026-03-15T10:00:00"
+}
+
+###############################################
+# VERIFY SETUP: Check MongoDB has events
+# Run in terminal:
+# docker exec -it uber-mongo mongosh \
+#   -u root -p rootpass --authenticationDatabase admin
+# use ubermongo
+# db.payment_audit_trail.find().pretty()
+###############################################
+
+###############################################
+# S5-F11 TESTS
+###############################################
+
+### Test (a): Valid April range - expect 200 with breakdown
+### Expected: CREDIT_CARD (success=2, failure=1, rate=0.667, total=250)
+###           CASH        (success=1, failure=0, rate=1.0,   total=75)
+###           WALLET      (success=0, failure=1, rate=0.0,   total=0)
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgyMDI3LCJleHAiOjE3NzgwNjg0Mjd9.Brvd6EoneYmDnggns-cGqfpkZcjXSwMDOSFnpl9jaxc
+
+###
+
+### Test (b): Empty date range January - expect 200 with []
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-01-01&endDate=2026-01-31
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgxMTY2LCJleHAiOjE3NzgwNjc1NjZ9.EHQR-loGvPHSPwCnYg0ttMDCixNp5cfKWjQt8FpqjmM
+
+###
+
+### Test (c): Invalid range start after end - expect 400
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-30&endDate=2026-04-01
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgxMTY2LCJleHAiOjE3NzgwNjc1NjZ9.EHQR-loGvPHSPwCnYg0ttMDCixNp5cfKWjQt8FpqjmM
+
+###
+
+### Test (d): No token - expect 401 with error message
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30
+
+###
+
+### Test (e): Invalid token - expect 401
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30
+Authorization: Bearer ayJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgxMTY2LCJleHAiOjE3NzgwNjc1NjZ9.EHQR-loGvPHSPwCnYg0ttMDCixNp5cfKWjQt8FpqjmM
+
+###
+
+### Test (f): March range - should only include March payment
+### Expected: CREDIT_CARD (success=1, failure=0, rate=1.0, total=300)
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-03-01&endDate=2026-03-31
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgxMTY2LCJleHAiOjE3NzgwNjc1NjZ9.EHQR-loGvPHSPwCnYg0ttMDCixNp5cfKWjQt8FpqjmM
+
+###
+
+### Test (g): Full year range - should include ALL payments
+### Expected: CREDIT_CARD (success=3, failure=1, rate=0.75, total=550)
+###           CASH        (success=1, failure=0, rate=1.0,  total=75)
+###           WALLET      (success=0, failure=1, rate=0.0,  total=0)
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-01-01&endDate=2026-12-31
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgxMTY2LCJleHAiOjE3NzgwNjc1NjZ9.EHQR-loGvPHSPwCnYg0ttMDCixNp5cfKWjQt8FpqjmM
+
+###
+
+### Test (h): Boundary test - single day April 5
+### Expected: CREDIT_CARD (success=1, total=100)
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-05&endDate=2026-04-05
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgxMTY2LCJleHAiOjE3NzgwNjc1NjZ9.EHQR-loGvPHSPwCnYg0ttMDCixNp5cfKWjQt8FpqjmM
+
+###
+
+### Test (i): RIDER token - should also work (USER-level endpoint)
+### Get RIDER token first from login, then use here
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "rider@example.com",
+  "password": "riderpass"
+}
+
+###
+
+### Use RIDER token here - expect 200
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3OTgxMzk1LCJleHAiOjE3NzgwNjc3OTV9.17Pfpj9DIk_uQQVwiyKipiHmW6aKbveZBB-L7Ijq6Tk
+
+###############################################
+# VERIFY: Check caching works
+# Run test (a) twice - second should be faster
+###############################################
+
+### Cache test - run twice and compare response times
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgxMTY2LCJleHAiOjE3NzgwNjc1NjZ9.EHQR-loGvPHSPwCnYg0ttMDCixNp5cfKWjQt8FpqjmM

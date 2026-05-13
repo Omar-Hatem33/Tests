@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: location-service
+
+  datasource:
+    url: jdbc:postgresql://location-postgres:5432/uberdb-locations
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  mongodb:
+    uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/ubermongo}
+
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000
+          max-attempts: 3
+
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/ubermongo}
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+
+  cassandra:
+    keyspace-name: ${SPRING_CASSANDRA_KEYSPACE_NAME:uberks}
+    contact-points: ${SPRING_CASSANDRA_CONTACT_POINTS:cassandra}
+    port: ${SPRING_CASSANDRA_PORT:9042}
+    local-datacenter: ${SPRING_CASSANDRA_LOCAL_DATACENTER:datacenter1}
+    schema-action: CREATE_IF_NOT_EXISTS
+    request-timeout: ${SPRING_CASSANDRA_REQUEST_TIMEOUT:30s}
+    connection:
+      connect-timeout: 30s
+      init-query-timeout: 30s
+feign:
+  user-service:
+    url: http://user-service:8080
+  driver-service:
+    url: http://driver-service:8080
+  ride-service:
+    url: http://ride-service:8080
+  location-service:
+    url: http://location-service:8080
+  payment-service:
+    url: http://payment-service:8080
+server:
+  port: 8080

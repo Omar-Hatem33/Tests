@@ -1,0 +1,797 @@
+### Create a completed payment
+### Setup: Create payment 1 - COMPLETED March 10
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 1,
+  "userId": 1,
+  "amount": 85.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED",
+  "createdAt": "2026-03-10T09:00:00"
+}
+
+###
+
+### Create a pending payment
+### Setup: Create payment 2 - COMPLETED March 20
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 2,
+  "userId": 1,
+  "amount": 50.0,
+  "method": "CASH",
+  "status": "PENDING",
+  "createdAt": "2026-03-12T10:00:00"
+}
+
+###
+
+### Create a failed payment
+  "amount": 120.0,
+  "method": "WALLET",
+  "status": "COMPLETED",
+  "createdAt": "2026-03-20T14:00:00"
+}
+
+###
+
+### Setup: Create payment 3 - REFUNDED March 15
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 3,
+  "userId": 2,
+  "amount": 70.0,
+  "method": "WALLET",
+  "status": "FAILED",
+  "createdAt": "2026-03-14T11:00:00"
+}
+
+###
+
+###  Refund the completed payment - expect 200, status=REFUNDED
+PUT http://localhost:8080/api/payments/6/refund
+Content-Type: application/json
+
+{
+  "reason": "driver no show"
+}
+
+###
+
+### Try refunding again - expect 400 (already REFUNDED)
+PUT http://localhost:8080/api/payments/6/refund
+Content-Type: application/json
+
+{
+  "reason": "test"
+}
+
+###
+
+### Try refunding a pending payment - expect 400
+PUT http://localhost:8080/api/payments/7/refund
+Content-Type: application/json
+
+{
+  "reason": "test"
+}
+
+###
+
+### Try refunding a failed payment - expect 400
+PUT http://localhost:8080/api/payments/8/refund
+Content-Type: application/json
+
+{
+  "reason": "test"
+}
+
+###
+
+### Non-existent payment - expect 404
+PUT http://localhost:8080/api/payments/999/refund
+Content-Type: application/json
+
+{
+  "reason": "test"
+}
+
+###
+
+### Get the refunded payment
+GET http://localhost:8080/api/payments/6
+  "amount": 60.0,
+  "method": "CREDIT_CARD",
+  "status": "REFUNDED",
+  "createdAt": "2026-03-15T11:00:00"
+}
+
+###
+
+### Setup: Create payment 4 - COMPLETED February 5
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 4,
+  "userId": 1,
+  "amount": 50.0,
+  "method": "CASH",
+  "status": "COMPLETED",
+  "createdAt": "2026-02-05T10:00:00"
+}
+
+###
+
+### Setup: Create payment 5 - COMPLETED February 18
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 5,
+  "userId": 2,
+  "amount": 75.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED",
+  "createdAt": "2026-02-18T16:00:00"
+}
+
+###
+
+### Test (b): COMPLETED in March - expect 2 results, March 20 first
+GET http://localhost:8080/api/payments/search?status=COMPLETED&startDate=2026-03-01T00:00:00&endDate=2026-03-31T23:59:59
+
+###
+
+### Test (c): All payments in March - expect 3 results (2 COMPLETED + 1 REFUNDED)
+GET http://localhost:8080/api/payments/search?startDate=2026-03-01T00:00:00&endDate=2026-03-31T23:59:59
+
+
+###M2
+###############################################
+# STEP 1: Get tokens from user service
+###############################################
+
+### Login as ADMIN - save the token from response
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "adminpass"
+}
+
+###eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3NzMyMTgyLCJleHAiOjE3Nzc4MTg1ODJ9.Xrei_EeAA5fFa4w5YS1U6QRdL5r41FU_rTgWqFgsaSU
+
+
+
+###
+
+### Login as RIDER - save the token from response
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "rider@example.com",
+  "password": "riderpass"
+}
+
+### eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3NjY2OTMzLCJleHAiOjE3Nzc3NTMzMzN9.7y9OmcCSvoQyM-9vvGeXGIt7aUHdFpE1XBaarA165DA
+
+###############################################
+# STEP 2: Payment service - NO token tests
+# All should return 401
+###############################################
+
+### No token - GET all payments - expect 401
+GET http://localhost:8080/api/payments
+
+###
+
+### No token - GET payment by ID - expect 401
+GET http://localhost:8080/api/payments/1
+
+###
+
+### No token - POST create payment - expect 401
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 1,
+  "userId": 1,
+  "amount": 100.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED"
+}
+
+###
+
+### No token - GET search - expect 401
+GET http://localhost:8080/api/payments/search?startDate=2026-01-01&endDate=2026-12-31
+
+###
+
+### No token - GET user summary - expect 401
+GET http://localhost:8080/api/payments/user/1/summary
+
+###
+
+### No token - GET revenue report - expect 401
+GET http://localhost:8080/api/payments/reports/revenue?startDate=2026-01-01&endDate=2026-12-31
+
+###
+
+### No token - GET payment details - expect 401
+GET http://localhost:8080/api/payments/1/details
+
+###
+
+### No token - GET top used coupons - expect 401
+GET http://localhost:8085/api/payments/coupons/top-used?limit=5
+
+###
+
+### No token - PUT refund - expect 401
+PUT http://localhost:8085/api/payments/1/refund
+Content-Type: application/json
+
+{
+  "reason": "test"
+}
+
+###
+
+### No token - PUT retry - expect 401
+PUT http://localhost:8085/api/payments/1/retry
+
+###############################################
+# STEP 3: Payment service - INVALID token tests
+# All should return 401
+###############################################
+
+### Invalid token - expect 401
+GET http://localhost:8085/api/payments
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3NjY0MzUyLCJleHAiOjE3Nzc3NTA3NTJ9.UzhlCWdj4WnqTb-6hI1_qTJo2ddQIUdtMnGe4BbvbU3
+
+###
+
+### Malformed token - expect 401
+GET http://localhost:8085/api/payments
+Authorization: Bearer abc
+
+###
+
+### Wrong format (no Bearer prefix) - expect 401
+GET http://localhost:8085/api/payments
+Authorization: invalid.token.here
+
+###############################################
+# STEP 4: Health check - no token needed
+# Should return 200 without any token
+###############################################
+
+### Health check - expect 200 (public endpoint)
+GET http://localhost:8085/api/payments/health
+
+###############################################
+# STEP 5: Valid token tests
+# Replace TOKEN_HERE with actual token from Step 1
+# All should return 200 or appropriate success code
+###############################################
+
+### Valid RIDER token - GET all payments - expect 200
+GET http://localhost:8085/api/payments
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3NzM1OTM4LCJleHAiOjE3Nzc4MjIzMzh9._owNU-8TDtUq7Y4wlPKZACUDvy-Ne7Vn-nncCHQtIiM
+###
+
+### Valid RIDER token - GET payment by ID - expect 200 or 404
+GET http://localhost:8085/api/payments/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3NjY2OTMzLCJleHAiOjE3Nzc3NTMzMzN9.7y9OmcCSvoQyM-9vvGeXGIt7aUHdFpE1XBaarA165DA
+
+###
+
+### Valid RIDER token - POST create payment - expect 201
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3NzM1OTM4LCJleHAiOjE3Nzc4MjIzMzh9._owNU-8TDtUq7Y4wlPKZACUDvy-Ne7Vn-nncCHQtIiM
+
+{
+  "rideId": 1,
+  "userId": 1,
+  "amount": 200.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED",
+  "createdAt": "2026-03-15T09:00:00"
+}
+
+###
+
+### Valid RIDER token - GET search - expect 200
+GET http://localhost:8085/api/payments/search?startDate=2026-01-01T00:00:00&endDate=2026-12-31T23:59:59
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3NjY2OTMzLCJleHAiOjE3Nzc3NTMzMzN9.7y9OmcCSvoQyM-9vvGeXGIt7aUHdFpE1XBaarA165DA
+
+###
+
+### Valid RIDER token - GET user summary - expect 200
+GET http://localhost:8085/api/payments/user/1/summary
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3NjY2OTMzLCJleHAiOjE3Nzc3NTMzMzN9.7y9OmcCSvoQyM-9vvGeXGIt7aUHdFpE1XBaarA165DA
+
+###
+
+### Valid RIDER token - GET revenue report - expect 200
+GET http://localhost:8085/api/payments/reports/revenue?startDate=2026-01-01&endDate=2026-12-31
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3NjY2OTMzLCJleHAiOjE3Nzc3NTMzMzN9.7y9OmcCSvoQyM-9vvGeXGIt7aUHdFpE1XBaarA165DA
+
+###
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "adminpass"
+}
+
+### Valid ADMIN token - GET top used coupons - expect 200
+GET http://localhost:8085/api/payments/coupons/top-used?limit=5
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3NzM2MjIxLCJleHAiOjE3Nzc4MjI2MjF9.PHkTH2PekRGWNkyVI0XZNsK6KMEEecia-VvXacfTyLA
+
+
+
+
+
+
+### 1. Login as ADMIN (user-service)
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "adminpass"
+}
+
+###eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3ODA4NzE3LCJleHAiOjE3Nzc4OTUxMTd9.N_dzlJmx92MJG3Pv5gK22QDo3GlOUbKfuWzPI9ctI3w
+
+### 2. Login as RIDER (user-service)
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "rider@example.com",
+  "password": "riderpass"
+}
+
+###
+
+# -----------------------------------------------------------------------
+# VARIABLES (fill in after login above)
+# -----------------------------------------------------------------------
+@adminToken = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3ODA4NzE3LCJleHAiOjE3Nzc4OTUxMTd9.N_dzlJmx92MJG3Pv5gK22QDo3GlOUbKfuWzPI9ctI3w
+@riderToken  = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyaWRlckBleGFtcGxlLmNvbSIsInVpZCI6Miwicm9sZSI6IlJJREVSIiwiaWF0IjoxNzc3ODA4NzY2LCJleHAiOjE3Nzc4OTUxNjZ9.UMWImgDVrI6dkZqBhaMx94yuoRgHpCT_HkpeizgyM4U
+@baseUrl     = http://localhost:8085
+
+# -----------------------------------------------------------------------
+# GROUP A — Observer fires on M1 write endpoints (Section 4.5 retrofit)
+# Expected: after each write, a document appears in MongoDB
+# payment_audit_trail collection.
+# Verify in mongo shell:
+#   docker exec -it uber-mongo mongosh -u root -p rootpass
+#   use ubermongo
+#   db.payment_audit_trail.find().sort({timestamp:-1}).limit(5).pretty()
+# -----------------------------------------------------------------------
+
+### A1. Create a payment (CRUD POST) — expect CREATED event in Mongo
+# Expected: 201, then payment_audit_trail has a doc with action=CREATED
+POST {{baseUrl}}/api/payments
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "rideId": 1,
+  "userId": 1,
+  "amount": 250.00,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED"
+}
+
+### A2. Process refund on a COMPLETED payment — expect REFUNDED event
+# First ensure a COMPLETED payment exists (update one via CRUD if needed)
+# Expected: 200, payment_audit_trail has action=REFUNDED for this paymentId
+PUT {{baseUrl}}/api/payments/3/refund
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "driver no show"
+}
+
+
+### 2a. Create a PERCENTAGE coupon (50% off, max 10 uses)
+POST {{baseUrl}}/api/coupons
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "code": "TEST50",
+  "discountType": "PERCENTAGE",
+  "discountValue": 50.0,
+  "maxUses": 10,
+  "currentUses": 0,
+  "expiryDate": "2027-12-31T23:59:59",
+  "active": true
+}
+
+### Paste returned coupon id below:
+@couponId = <paste_coupon_id_here>
+
+### 2b. Create a FIXED coupon (20 off, max 5 uses)
+POST {{baseUrl}}/api/coupons
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "code": "FIXED20",
+  "discountType": "FIXED",
+  "discountValue": 20.0,
+  "maxUses": 5,
+  "currentUses": 0,
+  "expiryDate": "2027-12-31T23:59:59",
+  "active": true
+}
+
+
+### A3. Apply coupon to a PENDING payment — expect COUPON_APPLIED event
+# Expected: 200, payment_audit_trail has action=COUPON_APPLIED
+POST {{baseUrl}}/api/payments/1/coupons/1
+Authorization: Bearer {{adminToken}}
+
+### A4. Retry a FAILED payment — expect RETRY_ATTEMPTED event
+# First set a payment to FAILED status via CRUD update
+PUT {{baseUrl}}/api/payments/2
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "FAILED"
+}
+
+### Then retry it — expect RETRY_ATTEMPTED + status becomes COMPLETED
+PUT {{baseUrl}}/api/payments/3/retry
+Authorization: Bearer {{adminToken}}
+
+# -----------------------------------------------------------------------
+# GROUP B — Authorization checks (your existing JWT filter)
+# -----------------------------------------------------------------------
+
+### B1. No token — expect 401
+GET {{baseUrl}}/api/payments/coupons/top-used?limit=5
+
+### B2. Invalid token — expect 401
+GET {{baseUrl}}/api/payments/coupons/top-used?limit=5
+Authorization: Bearer this.is.not.valid
+
+### B3. Valid RIDER token — expect 200 (USER-level endpoint)
+GET {{baseUrl}}/api/payments/coupons/top-used?limit=5
+Authorization: Bearer {{riderToken}}
+
+### B4. Valid ADMIN token — expect 200
+GET {{baseUrl}}/api/payments/coupons/top-used?limit=5
+Authorization: Bearer {{adminToken}}
+
+### B5. Health endpoint — no token needed, expect 200
+GET {{baseUrl}}/api/payments/health
+
+# -----------------------------------------------------------------------
+# GROUP C — MongoEvent / EventFactory reflection sanity
+# (These are unit tests; run in your IDE or via mvn test)
+# Paste into a JUnit test class under payment-service/src/test/
+# -----------------------------------------------------------------------
+
+# C1. MongoEvent interface has required methods
+#
+#   Class<?> iface = Class.forName(
+#       "com.team21.uber.payment.events.MongoEvent");
+#   assertTrue(iface.isInterface());
+#   assertNotNull(iface.getMethod("getId"));
+#   assertNotNull(iface.getMethod("getTimestamp"));
+#   assertNotNull(iface.getMethod("getAction"));
+#   assertNotNull(iface.getMethod("getDetails"));
+
+# C2. PaymentAuditEvent implements MongoEvent
+#
+#   Class<?> cls = Class.forName(
+#       "com.team21.uber.payment.events.PaymentAditEvent");
+#   assertTrue(MongoEvent.class.isAssignableFrom(cls));
+#   // payment-specific fields exist
+#   assertNotNull(cls.getMethod("getMethod"));
+#   assertNotNull(cls.getMethod("getAmount"));
+
+# C3. EventFactory.createEvent exists with correct signature
+#
+#   Class<?> factory = Class.forName(
+#       "com.team21.uber.payment.events.EventFactory");
+#   Method m = factory.getMethod("createEvent", EventType.class, Map.class);
+#   assertTrue(MongoEvent.class.isAssignableFrom(m.getReturnType()));
+
+# C4. EventFactory creates correct type for PAYMENT_AUDIT
+#
+#   Map<String,Object> params = new HashMap<>();
+#   params.put("action",    "CREATED");
+#   params.put("paymentId", 99L);
+#   params.put("method",    "CREDIT_CARD");
+#   params.put("amount",    100.0);
+#   MongoEvent event = EventFactory.createEvent(EventType.PAYMENT_AUDIT, params);
+#   assertInstanceOf(PaymentAuditEvent.class, event);
+#   assertEquals("CREATED",      event.getAction());
+#   assertEquals("CREDIT_CARD", ((PaymentAuditEvent) event).getMethod());
+#   assertEquals(100.0,         ((PaymentAuditEvent) event).getAmount());
+
+# C5. EventFactory rejects lifecycle action without method/amount
+#
+#   Map<String,Object> badParams = new HashMap<>();
+#   badParams.put("action",    "COMPLETED");
+#   badParams.put("paymentId", 99L);
+#   // method and amount deliberately absent
+#   assertThrows(IllegalArgumentException.class,
+#       () -> EventFactory.createEvent(EventType.PAYMENT_AUDIT, badParams));
+
+# C6. EventFactory allows ANALYTICS_VIEWED without method/amount
+#
+#   Map<String,Object> params = new HashMap<>();
+#   params.put("action",    "ANALYTICS_VIEWED");
+#   params.put("paymentId", 99L);
+#   MongoEvent event = EventFactory.createEvent(EventType.PAYMENT_AUDIT, params);
+#   assertNull(((PaymentAuditEvent) event).getMethod());
+#   assertNull(((PaymentAuditEvent) event).getAmount());
+
+# -----------------------------------------------------------------------
+# GROUP D — EntityObserver / MongoEventLogger reflection
+# -----------------------------------------------------------------------
+
+# D1. EntityObserver is an interface with onEvent(String, Object)
+#
+#   Class<?> obs = Class.forName(
+#       "com.team21.uber.payment.events.EntityObserver");
+#   assertTrue(obs.isInterface());
+#   assertNotNull(obs.getMethod("onEvent", String.class, Object.class));
+
+# D2. MongoEventLogger implements EntityObserver
+#
+#   Class<?> logger = Class.forName(
+#       "com.team21.uber.payment.events.MongoEventLogger");
+#   assertTrue(EntityObserver.class.isAssignableFrom(logger));
+
+# D3. No @EventListener annotation on MongoEventLogger methods
+#
+#   for (Method m : MongoEventLogger.class.getDeclaredMethods()) {
+#       assertNull(m.getAnnotation(
+#           org.springframework.context.event.EventListener.class),
+#           "Method " + m.getName() + " must not have @EventListener");
+#   }
+
+# D4. Unregistering all observers stops MongoDB writes
+#   (integration test — needs Spring context)
+#
+#   eventPublisher.unregister(mongoEventLogger);
+#   long countBefore = auditRepo.count();
+#   // trigger any write endpoint
+#   // ...
+#   long countAfter = auditRepo.count();
+#   assertEquals(countBefore, countAfter,
+#       "No MongoDB write should occur with no observers registered");
+#   // re-register for subsequent tests
+#   eventPublisher.register(mongoEventLogger);
+
+# -----------------------------------------------------------------------
+# GROUP E — MongoDocumentAdapter (DP-7)
+# -----------------------------------------------------------------------
+
+# E1. Adapter class exists with adapt(Document) method returning PaymentAuditEvent
+#
+#   Class<?> adapter = Class.forName(
+#       "com.team21.uber.payment.adapter.MongoDocumentAdapter");
+#   Method adapt = adapter.getMethod("adapt",
+#       org.bson.Document.class);
+#   assertEquals(PaymentAuditEvent.class, adapt.getReturnType());
+
+# E2. adapt() populates fields from document keys
+#
+#   Document doc = new Document();
+#   doc.put("_id",       new org.bson.types.ObjectId().toString());
+#   doc.put("paymentId", 42L);
+#   doc.put("action",    "COMPLETED");
+#   doc.put("timestamp", new java.util.Date());
+#   doc.put("method",    "CASH");
+#   doc.put("amount",    75.0);
+#   doc.put("details",   new Document("note", "test"));
+#
+#   MongoDocumentAdapter adapter = new MongoDocumentAdapter();
+#   PaymentAuditEvent result = adapter.adapt(doc);
+#
+#   assertEquals(42L,         result.getPaymentId());
+#   assertEquals("COMPLETED", result.getAction());
+#   assertEquals("CASH",      result.getMethod());
+#   assertEquals(75.0,        result.getAmount());
+#   assertNotNull(result.getTimestamp());
+#   assertEquals("test",      result.getDetails().get("note"));
+
+# E3. adapt() handles null method and amount (ANALYTICS_VIEWED)
+#
+#   Document doc = new Document();
+#   doc.put("paymentId", 1L);
+#   doc.put("action",    "ANALYTICS_VIEWED");
+#   doc.put("timestamp", new java.util.Date());
+#   // method and amount absent
+#
+#   PaymentAuditEvent result = new MongoDocumentAdapter().adapt(doc);
+#   assertNull(result.getMethod());
+#   assertNull(result.getAmount());
+
+# E4. adapt() throws on null input
+#
+#   assertThrows(IllegalArgumentException.class,
+#       () -> new MongoDocumentAdapter().adapt(null));
+
+# -----------------------------------------------------------------------
+# GROUP F — Integration: full Observer → Factory → Mongo write flow
+# Verify via mongo shell after each HTTP call
+# -----------------------------------------------------------------------
+
+### F1. Create payment → verify CREATED event appears in payment_audit_trail
+# Step 1: create payment
+POST {{baseUrl}}/api/payments
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "rideId": 10,
+  "userId": 1,
+  "amount": 200.00,
+  "method": "WALLET",
+  "status": "PENDING"
+}
+
+### Step 1: create completed payment
+POST {{baseUrl}}/api/payments
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "rideId": 4,
+  "userId": 1,
+  "amount": 300.00,
+  "method": "WALLET",
+  "status": "COMPLETED"
+}
+
+### Step 2: check mongo
+# db.payment_audit_trail.findOne({action:"CREATED"})
+# Expected fields: paymentId (matches new payment id), method="WALLET",
+#                  amount=200.0, timestamp present
+
+### F2. Update payment to COMPLETED, then refund → verify REFUNDED event
+# (Requires a COMPLETED payment — update via CRUD if needed)
+PUT {{baseUrl}}/api/payments/5/refund
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "test refund"
+}
+
+### db.payment_audit_trail.findOne({action:"REFUNDED", paymentId:5})
+### Expected: refundReason in details, method and amount populated
+
+
+
+
+
+###F11
+###############################################
+# SETUP: Login to get token
+###############################################
+
+### Login as ADMIN
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "adminpass"
+}
+
+###############################################
+# SETUP: Create payment audit events via
+# existing payment flows
+# Replace TOKEN with token from above
+###############################################
+
+### Create payment 1 - will become COMPLETED via S5-F4
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgwNzI4LCJleHAiOjE3NzgwNjcxMjh9.kHBngSekpQNkRWSruHe_IXZ-TV9ns2LslIxwXSI8QXk
+
+{
+  "rideId": 101,
+  "userId": 1,
+  "amount": 100.0,
+  "method": "CREDIT_CARD",
+  "status": "PENDING",
+  "createdAt": "2026-04-01T10:00:00"
+}
+
+###
+
+### Create payment 2 - FAILED via simulateFailure
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgwNzI4LCJleHAiOjE3NzgwNjcxMjh9.kHBngSekpQNkRWSruHe_IXZ-TV9ns2LslIxwXSI8QXk
+
+{
+  "rideId": 102,
+  "userId": 1,
+  "amount": 50.0,
+  "method": "CREDIT_CARD",
+  "status": "PENDING",
+  "createdAt": "2026-04-02T10:00:00"
+}
+
+###
+
+### Create payment 3 - CASH COMPLETED
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgwNzI4LCJleHAiOjE3NzgwNjcxMjh9.kHBngSekpQNkRWSruHe_IXZ-TV9ns2LslIxwXSI8QXk
+
+{
+  "rideId": 103,
+  "userId": 2,
+  "amount": 75.0,
+  "method": "CASH",
+  "status": "PENDING",
+  "createdAt": "2026-04-03T10:00:00"
+}
+
+###############################################
+# NOTE: S5-F11 reads from payment_audit_trail
+# in MongoDB. Events are written there by the
+# Observer when S5-F4 processes payments.
+# If you haven't wired the Observer yet,
+# insert test events directly via the audit
+# repository or trigger via S5-F4 flows.
+###############################################
+
+###############################################
+# S5-F11 TESTS
+# Replace TOKEN with actual token
+###############################################
+
+### Test (a): Valid date range with data
+### Expected: list with method breakdown
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgwNzI4LCJleHAiOjE3NzgwNjcxMjh9.kHBngSekpQNkRWSruHe_IXZ-TV9ns2LslIxwXSI8QXk
+
+###
+
+### Test (b): Date range with no events
+### Expected: empty list []
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-01-01&endDate=2026-01-31
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgwNzI4LCJleHAiOjE3NzgwNjcxMjh9.kHBngSekpQNkRWSruHe_IXZ-TV9ns2LslIxwXSI8QXk
+
+###
+
+### Test (c): Invalid date range - start after end
+### Expected: 400
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-30&endDate=2026-04-01
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc3OTgwNzI4LCJleHAiOjE3NzgwNjcxMjh9.kHBngSekpQNkRWSruHe_IXZ-TV9ns2LslIxwXSI8QXk
+
+###
+
+### Test (d): No token - expect 401
+GET http://localhost:8085/api/payments/analytics/methods?startDate=2026-04-01&endDate=2026-04-30

@@ -1,0 +1,2308 @@
+{
+  "scannedPath" : "/repo",
+  "scannedAt" : "2026-05-05T20:55:56.916186610Z",
+  "basePackage" : "com.team21.uber",
+  "entities" : [ {
+    "className" : "Driver",
+    "packageName" : "com.team21.uber.driver.model",
+    "tableName" : "drivers",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "name",
+      "columnName" : "name",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "email",
+      "columnName" : "email",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : true,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "phone",
+      "columnName" : "phone",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : true,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "licenseNumber",
+      "columnName" : "license_number",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : true,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "status",
+      "columnName" : "status",
+      "javaType" : "DriverStatus",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "rating",
+      "columnName" : "rating",
+      "javaType" : "Double",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "totalRatings",
+      "columnName" : "total_ratings",
+      "javaType" : "Integer",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "vehicleDetails",
+      "columnName" : "vehicle_details",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "createdAt",
+      "columnName" : "created_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "driverDocuments",
+      "columnName" : "driver_documents",
+      "javaType" : "List<DriverDocument>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "OneToMany"
+    } ]
+  }, {
+    "className" : "DriverDocument",
+    "packageName" : "com.team21.uber.driver.model",
+    "tableName" : "driver_documents",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "type",
+      "columnName" : "type",
+      "javaType" : "DocumentType",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "documentUrl",
+      "columnName" : "document_url",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "expiryDate",
+      "columnName" : "expiry_date",
+      "javaType" : "LocalDate",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "verified",
+      "columnName" : "verified",
+      "javaType" : "Boolean",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "metadata",
+      "columnName" : "metadata",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "uploadedAt",
+      "columnName" : "uploaded_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "driver",
+      "columnName" : "driver",
+      "javaType" : "Driver",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "ManyToOne"
+    } ]
+  }, {
+    "className" : "Delivery",
+    "packageName" : "com.team21.uber.location.model",
+    "tableName" : "locations",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "driverId",
+      "columnName" : "driver_id",
+      "javaType" : "Long",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "latitude",
+      "columnName" : "latitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "longitude",
+      "columnName" : "longitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "timestamp",
+      "columnName" : "timestamp",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "metadata",
+      "columnName" : "metadata",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    } ]
+  }, {
+    "className" : "Coupon",
+    "packageName" : "com.team21.uber.payment.model",
+    "tableName" : "coupons",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "code",
+      "columnName" : "code",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : true,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "discountType",
+      "columnName" : "discount_type",
+      "javaType" : "DiscountType",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "discountValue",
+      "columnName" : "discount_value",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "maxUses",
+      "columnName" : "max_uses",
+      "javaType" : "Integer",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "currentUses",
+      "columnName" : "current_uses",
+      "javaType" : "Integer",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "expiryDate",
+      "columnName" : "expiry_date",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "active",
+      "columnName" : "active",
+      "javaType" : "Boolean",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "metadata",
+      "columnName" : "metadata",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "paymentCoupons",
+      "columnName" : "payment_coupons",
+      "javaType" : "List<PaymentCoupon>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "OneToMany"
+    } ]
+  }, {
+    "className" : "Payment",
+    "packageName" : "com.team21.uber.payment.model",
+    "tableName" : "payments",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "rideId",
+      "columnName" : "ride_id",
+      "javaType" : "Long",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "userId",
+      "columnName" : "user_id",
+      "javaType" : "Long",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "amount",
+      "columnName" : "amount",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "method",
+      "columnName" : "method",
+      "javaType" : "PaymentMethod",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "status",
+      "columnName" : "status",
+      "javaType" : "PaymentStatus",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "transactionDetails",
+      "columnName" : "transaction_details",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "createdAt",
+      "columnName" : "created_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "paymentCoupons",
+      "columnName" : "payment_coupons",
+      "javaType" : "List<PaymentCoupon>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "OneToMany"
+    } ]
+  }, {
+    "className" : "PaymentCoupon",
+    "packageName" : "com.team21.uber.payment.model",
+    "tableName" : "payment_coupons",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "discountApplied",
+      "columnName" : "discount_applied",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "appliedAt",
+      "columnName" : "applied_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "payment",
+      "columnName" : "payment",
+      "javaType" : "Payment",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "ManyToOne"
+    }, {
+      "fieldName" : "coupon",
+      "columnName" : "coupon",
+      "javaType" : "Coupon",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "ManyToOne"
+    } ]
+  }, {
+    "className" : "Ride",
+    "packageName" : "com.team21.uber.ride.model",
+    "tableName" : "rides",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "userId",
+      "columnName" : "user_id",
+      "javaType" : "Long",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "driverId",
+      "columnName" : "driver_id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "pickupLatitude",
+      "columnName" : "pickup_latitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "pickupLongitude",
+      "columnName" : "pickup_longitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "dropoffLatitude",
+      "columnName" : "dropoff_latitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "dropoffLongitude",
+      "columnName" : "dropoff_longitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "status",
+      "columnName" : "status",
+      "javaType" : "RideStatus",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "fare",
+      "columnName" : "fare",
+      "javaType" : "Double",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "metadata",
+      "columnName" : "metadata",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "requestedAt",
+      "columnName" : "requested_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "completedAt",
+      "columnName" : "completed_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "rideStops",
+      "columnName" : "ride_stops",
+      "javaType" : "List<RideStop>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "OneToMany"
+    } ]
+  }, {
+    "className" : "RideStop",
+    "packageName" : "com.team21.uber.ride.model",
+    "tableName" : "ride_stops",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "stopOrder",
+      "columnName" : "stop_order",
+      "javaType" : "Integer",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "latitude",
+      "columnName" : "latitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "longitude",
+      "columnName" : "longitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "address",
+      "columnName" : "address",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "status",
+      "columnName" : "status",
+      "javaType" : "RideStopStatus",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "metadata",
+      "columnName" : "metadata",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "ride",
+      "columnName" : "ride",
+      "javaType" : "Ride",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "ManyToOne"
+    } ]
+  }, {
+    "className" : "SavedAddress",
+    "packageName" : "com.team21.uber.user.model",
+    "tableName" : "saved_addresses",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "label",
+      "columnName" : "label",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "address",
+      "columnName" : "address",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "latitude",
+      "columnName" : "latitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "longitude",
+      "columnName" : "longitude",
+      "javaType" : "Double",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "isDefault",
+      "columnName" : "is_default",
+      "javaType" : "Boolean",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "metadata",
+      "columnName" : "metadata",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "createdAt",
+      "columnName" : "created_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "user",
+      "columnName" : "user",
+      "javaType" : "User",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "ManyToOne"
+    } ]
+  }, {
+    "className" : "User",
+    "packageName" : "com.team21.uber.user.model",
+    "tableName" : "users",
+    "columns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "name",
+      "columnName" : "name",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "email",
+      "columnName" : "email",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : true,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "password",
+      "columnName" : "password",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "phone",
+      "columnName" : "phone",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : true,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "role",
+      "columnName" : "role",
+      "javaType" : "Role",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "status",
+      "columnName" : "status",
+      "javaType" : "UserStatus",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "preferences",
+      "columnName" : "preferences",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "createdAt",
+      "columnName" : "created_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "savedAddresses",
+      "columnName" : "saved_addresses",
+      "javaType" : "List<SavedAddress>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "OneToMany"
+    } ]
+  } ],
+  "enums" : [ {
+    "enumName" : "EventType",
+    "packageName" : "com.team21.uber.driver.events",
+    "values" : [ "AUTH", "DRIVER", "RIDE", "LOCATION", "PAYMENT_AUDIT" ]
+  }, {
+    "enumName" : "DocumentType",
+    "packageName" : "com.team21.uber.driver.model",
+    "values" : [ "LICENSE", "INSURANCE", "REGISTRATION" ]
+  }, {
+    "enumName" : "DriverStatus",
+    "packageName" : "com.team21.uber.driver.model",
+    "values" : [ "AVAILABLE", "BUSY", "OFFLINE" ]
+  }, {
+    "enumName" : "EventType",
+    "packageName" : "com.team21.uber.location.events",
+    "values" : [ "AUTH", "DRIVER", "RIDE", "LOCATION", "PAYMENT_AUDIT" ]
+  }, {
+    "enumName" : "EventType",
+    "packageName" : "com.team21.uber.payment.events",
+    "values" : [ "AUTH", "DRIVER", "RIDE", "LOCATION", "PAYMENT_AUDIT" ]
+  }, {
+    "enumName" : "DiscountType",
+    "packageName" : "com.team21.uber.payment.model",
+    "values" : [ "PERCENTAGE", "FIXED" ]
+  }, {
+    "enumName" : "PaymentMethod",
+    "packageName" : "com.team21.uber.payment.model",
+    "values" : [ "CREDIT_CARD", "CASH", "WALLET" ]
+  }, {
+    "enumName" : "PaymentStatus",
+    "packageName" : "com.team21.uber.payment.model",
+    "values" : [ "PENDING", "COMPLETED", "FAILED", "REFUNDED" ]
+  }, {
+    "enumName" : "EventType",
+    "packageName" : "com.team21.uber.ride.event",
+    "values" : [ "AUTH", "DRIVER", "RIDE", "LOCATION", "PAYMENT_AUDIT" ]
+  }, {
+    "enumName" : "RideStatus",
+    "packageName" : "com.team21.uber.ride.model",
+    "values" : [ "REQUESTED", "ACCEPTED", "IN_PROGRESS", "COMPLETED", "CANCELLED" ]
+  }, {
+    "enumName" : "RideStopStatus",
+    "packageName" : "com.team21.uber.ride.model",
+    "values" : [ "PENDING", "REACHED", "SKIPPED" ]
+  }, {
+    "enumName" : "EventType",
+    "packageName" : "com.team21.uber.user.events",
+    "values" : [ "AUTH", "DRIVER", "RIDE", "LOCATION", "PAYMENT_AUDIT" ]
+  }, {
+    "enumName" : "Role",
+    "packageName" : "com.team21.uber.user.model",
+    "values" : [ "RIDER", "ADMIN" ]
+  }, {
+    "enumName" : "UserStatus",
+    "packageName" : "com.team21.uber.user.model",
+    "values" : [ "ACTIVE", "DEACTIVATED" ]
+  } ],
+  "controllers" : [ {
+    "className" : "DriverController",
+    "packageName" : "com.team21.uber.driver.controller",
+    "basePaths" : [ "/api/drivers" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/drivers/health",
+      "methodName" : "health",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<String>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/drivers",
+      "methodName" : "createDriver",
+      "pathVariables" : [ ],
+      "requestBodyType" : "Driver",
+      "responseType" : "ResponseEntity<Driver>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers",
+      "methodName" : "getAllDrivers",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<Driver>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/{id}",
+      "methodName" : "getDriverById",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Driver>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/drivers/{id}",
+      "methodName" : "updateDriver",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "Driver",
+      "responseType" : "ResponseEntity<Driver>"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/drivers/{id}",
+      "methodName" : "deleteDriver",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/search",
+      "methodName" : "searchDrivers",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<Driver>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/{id}/dashboard",
+      "methodName" : "getDriverDashboard",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<DriverDashboardDTO>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/search/full-text",
+      "methodName" : "fullTextSearch",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<DriverSearchResultDTO>>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/drivers/{id}/index",
+      "methodName" : "indexDriver",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Map<String,Object>>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/drivers/{id}/vehicle",
+      "methodName" : "updateVehicleDetails",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "Map<String,Object>",
+      "responseType" : "ResponseEntity<?>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/{id}/earnings",
+      "methodName" : "getDriverEarnings",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "DriverEarningsDTO"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/drivers/{id}/availability",
+      "methodName" : "updateAvailability",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "AvailabilityUpdateRequest",
+      "responseType" : "ResponseEntity<?>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/vehicle-type",
+      "methodName" : "getDriversByVehicleType",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<Driver>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/reports/top-rated",
+      "methodName" : "getTopRatedDrivers",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "List<TopDriverDTO>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/drivers/{id}/rate",
+      "methodName" : "rateDriver",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "DriverRatingRequest",
+      "responseType" : "ResponseEntity<?>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/drivers/{driverId}/documents/{documentId}/verify",
+      "methodName" : "verifyDocument",
+      "pathVariables" : [ "driverId", "documentId" ],
+      "requestBodyType" : "Map<String,Object>",
+      "responseType" : "Driver"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/documents/expired",
+      "methodName" : "getExpiredDocuments",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<DriverExpiredDocument>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/drivers/{driverId}/rating",
+      "methodName" : "getDriverRating",
+      "pathVariables" : [ "driverId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Double>"
+    }, {
+      "verb" : "PATCH",
+      "path" : "/api/drivers/{driverId}/status",
+      "methodName" : "updateDriverStatus",
+      "pathVariables" : [ "driverId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Driver>"
+    } ]
+  }, {
+    "className" : "DriverDocumentController",
+    "packageName" : "com.team21.uber.driver.controller",
+    "basePaths" : [ "/api/documents" ],
+    "endpoints" : [ {
+      "verb" : "POST",
+      "path" : "/api/documents/driver/{driverId}",
+      "methodName" : "createDocument",
+      "pathVariables" : [ "driverId" ],
+      "requestBodyType" : "DriverDocument",
+      "responseType" : "ResponseEntity<DriverDocument>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/documents",
+      "methodName" : "getAllDocuments",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<DriverDocument>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/documents/{id}",
+      "methodName" : "getDocumentById",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<DriverDocument>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/documents/{id}",
+      "methodName" : "updateDocument",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "DriverDocument",
+      "responseType" : "ResponseEntity<DriverDocument>"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/documents/{id}",
+      "methodName" : "deleteDocument",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    } ]
+  }, {
+    "className" : "DeliveryController",
+    "packageName" : "com.team21.uber.location.controller",
+    "basePaths" : [ "/api/locations" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/locations",
+      "methodName" : "getAllDeliveries",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<DeliveryResponse>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/locations/{id}",
+      "methodName" : "getDelivery",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<DeliveryResponse>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/locations/driver/{driverId}",
+      "methodName" : "createLocation",
+      "pathVariables" : [ "driverId" ],
+      "requestBodyType" : "DeliveryRequest",
+      "responseType" : "ResponseEntity<DeliveryResponse>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/locations/{id}",
+      "methodName" : "updateDelivery",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "DeliveryRequest",
+      "responseType" : "ResponseEntity<DeliveryResponse>"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/locations/{id}",
+      "methodName" : "deleteDelivery",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/locations/driver/{driverId}/latest",
+      "methodName" : "getLatestDelivery",
+      "pathVariables" : [ "driverId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<DeliveryResponse>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/locations/nearby",
+      "methodName" : "getNearbyDeliveries",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<NearbyDeliveryDTO>>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/locations/batch",
+      "methodName" : "createBatch",
+      "pathVariables" : [ ],
+      "requestBodyType" : "BatchDeliveryUpdateRequest",
+      "responseType" : "ResponseEntity<BatchDeliveryResponse>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/locations/metadata/search",
+      "methodName" : "searchByMetadata",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<DeliveryResponse>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/locations/history",
+      "methodName" : "getHistory",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<DeliveryResponse>>"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/locations/purge",
+      "methodName" : "purgeOldDeliveries",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<PurgeResponse>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/locations/driver/{driverId}/summary",
+      "methodName" : "getDriverSummary",
+      "pathVariables" : [ "driverId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<DeliveryPerformanceDTO>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/locations/stationary",
+      "methodName" : "getStationaryDrivers",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<DelayedDeliveryDTO>>"
+    } ]
+  }, {
+    "className" : "LocationController",
+    "packageName" : "com.team21.uber.location.controller",
+    "basePaths" : [ "/api/locations" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/locations/analytics",
+      "methodName" : "getAnalytics",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<LocationAnalyticsDTO>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/locations/{driverId}/tracking",
+      "methodName" : "recordTracking",
+      "pathVariables" : [ "driverId" ],
+      "requestBodyType" : "LocationTrackingRequest",
+      "responseType" : "ResponseEntity<LocationTrackingDTO>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/locations/{driverId}/timeline",
+      "methodName" : "getTimeline",
+      "pathVariables" : [ "driverId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<LocationTrackingDTO>>"
+    } ]
+  }, {
+    "className" : "LocationHealthController",
+    "packageName" : "com.team21.uber.location.controller",
+    "basePaths" : [ "/api/locations" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/locations/health",
+      "methodName" : "health",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<String>"
+    } ]
+  }, {
+    "className" : "AnalyticsController",
+    "packageName" : "com.team21.uber.payment.controller",
+    "basePaths" : [ "/api/payments/analytics" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/payments/analytics/vehicle-type",
+      "methodName" : "getFareRevenueByVehicleType",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<VehicleTypeRevenueDTO>>"
+    } ]
+  }, {
+    "className" : "CouponController",
+    "packageName" : "com.team21.uber.payment.controller",
+    "basePaths" : [ "/api/coupons" ],
+    "endpoints" : [ {
+      "verb" : "POST",
+      "path" : "/api/coupons",
+      "methodName" : "create",
+      "pathVariables" : [ ],
+      "requestBodyType" : "Coupon",
+      "responseType" : "ResponseEntity<Coupon>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/coupons/{id}",
+      "methodName" : "getById",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Coupon>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/coupons",
+      "methodName" : "getAll",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<Coupon>>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/coupons/{id}",
+      "methodName" : "update",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "Coupon",
+      "responseType" : "ResponseEntity<Coupon>"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/coupons/{id}",
+      "methodName" : "delete",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    } ]
+  }, {
+    "className" : "PaymentController",
+    "packageName" : "com.team21.uber.payment.controller",
+    "basePaths" : [ "/api/payments" ],
+    "endpoints" : [ {
+      "verb" : "POST",
+      "path" : "/api/payments",
+      "methodName" : "create",
+      "pathVariables" : [ ],
+      "requestBodyType" : "Payment",
+      "responseType" : "ResponseEntity<Payment>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/payments/{id}",
+      "methodName" : "getById",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Payment>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/payments",
+      "methodName" : "getAll",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<Payment>>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/payments/{id}",
+      "methodName" : "update",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "Payment",
+      "responseType" : "ResponseEntity<Payment>"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/payments/{id}",
+      "methodName" : "delete",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/payments/{paymentId}/details",
+      "methodName" : "getPaymentDetails",
+      "pathVariables" : [ "paymentId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<PaymentDetailsDTO>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/payments/{id}/retry",
+      "methodName" : "retryPayment",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Payment>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/payments/reports/revenue",
+      "methodName" : "getRevenueReport",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<RevenueReportDTO>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/payments/{paymentId}/coupons/{couponId}",
+      "methodName" : "applyCoupon",
+      "pathVariables" : [ "paymentId", "couponId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<PaymentDetailsDTO>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/payments/user/{userId}/summary",
+      "methodName" : "userSummary",
+      "pathVariables" : [ "userId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<UserPaymentSummaryDTO>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/payments/{id}/refund",
+      "methodName" : "refund",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "Map<String,String>",
+      "responseType" : "ResponseEntity<Payment>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/payments/search",
+      "methodName" : "search",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<Payment>>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/payments/ride/{rideId}",
+      "methodName" : "processPaymentForRide",
+      "pathVariables" : [ "rideId" ],
+      "requestBodyType" : "PaymentRequestDTO",
+      "responseType" : "ResponseEntity<PaymentDetailsDTO>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/payments/coupons/top-used",
+      "methodName" : "getTopUsedCoupons",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<CouponUsageDTO>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/payments/analytics/methods",
+      "methodName" : "getMethodBreakdown",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<PaymentMethodBreakdownDTO>>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/payments/{id}/refund-surge-adjusted",
+      "methodName" : "refundSurgeAdjusted",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "RefundRequestDTO",
+      "responseType" : "ResponseEntity<RefundResponseDTO>"
+    } ]
+  }, {
+    "className" : "PaymentHealthController",
+    "packageName" : "com.team21.uber.payment.controller",
+    "basePaths" : [ "/api/payments" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/payments/health",
+      "methodName" : "health",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<String>"
+    } ]
+  }, {
+    "className" : "RideAnalyticsController",
+    "packageName" : "com.team21.uber.ride.controller",
+    "basePaths" : [ "/api/rides/analytics" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/rides/analytics/dashboard",
+      "methodName" : "getDashboard",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "RideAnalyticsDashboardDTO"
+    } ]
+  }, {
+    "className" : "RideController",
+    "packageName" : "com.team21.uber.ride.controller",
+    "basePaths" : [ "api/rides" ],
+    "endpoints" : [ {
+      "verb" : "PUT",
+      "path" : "/api/rides/{id}/status",
+      "methodName" : "updateRideStatus",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "Map<String,String>",
+      "responseType" : "Ride"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/rides/search",
+      "methodName" : "searchRides",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "List<Ride>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/rides/{rideId}/assign",
+      "methodName" : "assignDriver",
+      "pathVariables" : [ "rideId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Ride>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/rides/estimate",
+      "methodName" : "getFareEstimate",
+      "pathVariables" : [ ],
+      "requestBodyType" : "FareEstimateRequest",
+      "responseType" : "ResponseEntity<FareEstimateDTO>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/rides/{id}/complete",
+      "methodName" : "completeRide",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Ride>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/rides/metadata/search",
+      "methodName" : "filterByMetadata",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<Ride>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/rides/analytics",
+      "methodName" : "getRideAnalytics",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<RideAnalyticsDTO>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/rides/{id}/cancel",
+      "methodName" : "cancelRide",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/rides/{rideId}/stops",
+      "methodName" : "addStops",
+      "pathVariables" : [ "rideId" ],
+      "requestBodyType" : "List<AddStopRequest>",
+      "responseType" : "ResponseEntity<Ride>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/rides/{rideId}/details",
+      "methodName" : "getRideDetails",
+      "pathVariables" : [ "rideId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<RideDetailsDTO>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/rides/{rideId}/record-interaction",
+      "methodName" : "recordInteraction",
+      "pathVariables" : [ "rideId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Map<String,Object>>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/rides",
+      "methodName" : "createRide",
+      "pathVariables" : [ ],
+      "requestBodyType" : "Ride",
+      "responseType" : "ResponseEntity<Ride>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/rides",
+      "methodName" : "getAllRides",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "List<Ride>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/rides/{id}",
+      "methodName" : "getRideById",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "Ride"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/rides/{id}",
+      "methodName" : "updateRide",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "Ride",
+      "responseType" : "Ride"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/rides/{id}",
+      "methodName" : "deleteRide",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    } ]
+  }, {
+    "className" : "RideHealthController",
+    "packageName" : "com.team21.uber.ride.controller",
+    "basePaths" : [ "/api/rides" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/rides/health",
+      "methodName" : "health",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<String>"
+    } ]
+  }, {
+    "className" : "AuthController",
+    "packageName" : "com.team21.uber.user.controller",
+    "basePaths" : [ "/api/auth" ],
+    "endpoints" : [ {
+      "verb" : "POST",
+      "path" : "/api/auth/register",
+      "methodName" : "register",
+      "pathVariables" : [ ],
+      "requestBodyType" : "RegisterRequest",
+      "responseType" : "ResponseEntity<AuthResponse>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/auth/login",
+      "methodName" : "login",
+      "pathVariables" : [ ],
+      "requestBodyType" : "LoginRequest",
+      "responseType" : "ResponseEntity<AuthResponse>"
+    } ]
+  }, {
+    "className" : "SavedAddressController",
+    "packageName" : "com.team21.uber.user.controller",
+    "basePaths" : [ "/api/users/{userId}/addresses" ],
+    "endpoints" : [ {
+      "verb" : "POST",
+      "path" : "/api/users/{userId}/addresses",
+      "methodName" : "create",
+      "pathVariables" : [ "userId" ],
+      "requestBodyType" : "SavedAddress",
+      "responseType" : "ResponseEntity<SavedAddress>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/users/{userId}/addresses",
+      "methodName" : "getAllForUser",
+      "pathVariables" : [ "userId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<SavedAddress>>"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/users/{userId}/addresses/{addressId}",
+      "methodName" : "delete",
+      "pathVariables" : [ "userId", "addressId" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    } ]
+  }, {
+    "className" : "UserActivityController",
+    "packageName" : "com.team21.uber.user.controller",
+    "basePaths" : [ "/api/users" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/users/{id}/activity",
+      "methodName" : "getActivityFeed",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Map<String,Object>>"
+    } ]
+  }, {
+    "className" : "UserController",
+    "packageName" : "com.team21.uber.user.controller",
+    "basePaths" : [ "/api/users" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/users/search",
+      "methodName" : "searchUsers",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "List<User>"
+    }, {
+      "verb" : "DELETE",
+      "path" : "/api/users/{id}",
+      "methodName" : "deleteUser",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<Void>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/users/{id}/profile",
+      "methodName" : "getUserProfile",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<UserProfileDTO>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/users/{id}/deactivate",
+      "methodName" : "deactivateUser",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "User"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/users/preferences/language",
+      "methodName" : "getUsersByLanguage",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<User>>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/users/reports/top-riders",
+      "methodName" : "getTopRiders",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<TopRiderDTO>>"
+    }, {
+      "verb" : "POST",
+      "path" : "/api/users",
+      "methodName" : "createUser",
+      "pathVariables" : [ ],
+      "requestBodyType" : "User",
+      "responseType" : "ResponseEntity<User>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/users/{id}/ride-summary",
+      "methodName" : "getUserRideSummary",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<UserRideSummaryDTO>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/users/{id}",
+      "methodName" : "getUserById",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<User>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/users",
+      "methodName" : "getAllUsers",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<List<User>>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/users/{id}",
+      "methodName" : "updateUser",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "User",
+      "responseType" : "ResponseEntity<User>"
+    }, {
+      "verb" : "GET",
+      "path" : "/api/users/preferences/search",
+      "methodName" : "filterUsersByPref",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "List<User>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/users/{userId}/addresses/{addressId}/default",
+      "methodName" : "setDefaultSavedAddress",
+      "pathVariables" : [ "userId", "addressId" ],
+      "requestBodyType" : null,
+      "responseType" : "User"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/users/{id}/preferences",
+      "methodName" : "updateUserPrefs",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "Map<String,Object>",
+      "responseType" : "User"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/users/{id}/role",
+      "methodName" : "updateRole",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : "UpdateRoleRequest",
+      "responseType" : "ResponseEntity<User>"
+    }, {
+      "verb" : "PUT",
+      "path" : "/api/users/{id}/role-test",
+      "methodName" : "testRole",
+      "pathVariables" : [ "id" ],
+      "requestBodyType" : null,
+      "responseType" : "String"
+    } ]
+  }, {
+    "className" : "UserHealthController",
+    "packageName" : "com.team21.uber.user.controller",
+    "basePaths" : [ "/api/users" ],
+    "endpoints" : [ {
+      "verb" : "GET",
+      "path" : "/api/users/health",
+      "methodName" : "health",
+      "pathVariables" : [ ],
+      "requestBodyType" : null,
+      "responseType" : "ResponseEntity<String>"
+    } ]
+  } ],
+  "mongoCollections" : [ {
+    "className" : "DriverEvent",
+    "packageName" : "com.team21.uber.driver.events",
+    "collectionName" : "driver_events",
+    "fields" : [ {
+      "fieldName" : "id",
+      "javaType" : "String",
+      "isId" : true
+    }, {
+      "fieldName" : "driverId",
+      "javaType" : "Long",
+      "isId" : false
+    }, {
+      "fieldName" : "action",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "timestamp",
+      "javaType" : "LocalDateTime",
+      "isId" : false
+    }, {
+      "fieldName" : "details",
+      "javaType" : "Map<String,Object>",
+      "isId" : false
+    } ]
+  }, {
+    "className" : "LocationEvent",
+    "packageName" : "com.team21.uber.location.events",
+    "collectionName" : "location_events",
+    "fields" : [ {
+      "fieldName" : "id",
+      "javaType" : "String",
+      "isId" : true
+    }, {
+      "fieldName" : "driverId",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "action",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "timestamp",
+      "javaType" : "LocalDateTime",
+      "isId" : false
+    }, {
+      "fieldName" : "details",
+      "javaType" : "Map<String,Object>",
+      "isId" : false
+    } ]
+  }, {
+    "className" : "PaymentAuditEvent",
+    "packageName" : "com.team21.uber.payment.events",
+    "collectionName" : "payment_audit_trail",
+    "fields" : [ {
+      "fieldName" : "id",
+      "javaType" : "String",
+      "isId" : true
+    }, {
+      "fieldName" : "paymentId",
+      "javaType" : "Long",
+      "isId" : false
+    }, {
+      "fieldName" : "action",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "timestamp",
+      "javaType" : "LocalDateTime",
+      "isId" : false
+    }, {
+      "fieldName" : "method",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "amount",
+      "javaType" : "Double",
+      "isId" : false
+    }, {
+      "fieldName" : "details",
+      "javaType" : "Map<String,Object>",
+      "isId" : false
+    } ]
+  }, {
+    "className" : "RideEvent",
+    "packageName" : "com.team21.uber.ride.event",
+    "collectionName" : "ride_events",
+    "fields" : [ {
+      "fieldName" : "id",
+      "javaType" : "String",
+      "isId" : true
+    }, {
+      "fieldName" : "rideId",
+      "javaType" : "Long",
+      "isId" : false
+    }, {
+      "fieldName" : "action",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "timestamp",
+      "javaType" : "LocalDateTime",
+      "isId" : false
+    }, {
+      "fieldName" : "details",
+      "javaType" : "Map<String,Object>",
+      "isId" : false
+    } ]
+  }, {
+    "className" : "AuthEvent",
+    "packageName" : "com.team21.uber.user.events",
+    "collectionName" : "auth_events",
+    "fields" : [ {
+      "fieldName" : "id",
+      "javaType" : "String",
+      "isId" : true
+    }, {
+      "fieldName" : "userId",
+      "javaType" : "Long",
+      "isId" : false
+    }, {
+      "fieldName" : "action",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "timestamp",
+      "javaType" : "LocalDateTime",
+      "isId" : false
+    }, {
+      "fieldName" : "details",
+      "javaType" : "Map<String,Object>",
+      "isId" : false
+    } ]
+  } ],
+  "esIndices" : [ {
+    "className" : "DriverSearchDocument",
+    "packageName" : "com.team21.uber.driver.model",
+    "indexName" : "drivers",
+    "fields" : [ {
+      "fieldName" : "id",
+      "javaType" : "String",
+      "isId" : true
+    }, {
+      "fieldName" : "name",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "description",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "status",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "vehicleType",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "rating",
+      "javaType" : "Double",
+      "isId" : false
+    } ]
+  } ],
+  "neo4jNodes" : [ {
+    "className" : "DriverNode",
+    "packageName" : "com.team21.uber.ride.neo4j",
+    "label" : "Driver",
+    "fields" : [ {
+      "fieldName" : "driverId",
+      "javaType" : "Long",
+      "isId" : true
+    }, {
+      "fieldName" : "name",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "vehicleType",
+      "javaType" : "String",
+      "isId" : false
+    } ]
+  }, {
+    "className" : "UserNode",
+    "packageName" : "com.team21.uber.ride.neo4j",
+    "label" : "User",
+    "fields" : [ {
+      "fieldName" : "userId",
+      "javaType" : "Long",
+      "isId" : true
+    }, {
+      "fieldName" : "name",
+      "javaType" : "String",
+      "isId" : false
+    }, {
+      "fieldName" : "rodeWithDrivers",
+      "javaType" : "List<RodeWithRelationship>",
+      "isId" : false
+    } ]
+  } ],
+  "neo4jRelationships" : [ {
+    "className" : "RodeWithRelationship",
+    "packageName" : "com.team21.uber.ride.neo4j",
+    "fields" : [ {
+      "fieldName" : "id",
+      "javaType" : "Long",
+      "isId" : true
+    }, {
+      "fieldName" : "driver",
+      "javaType" : "DriverNode",
+      "isId" : false
+    }, {
+      "fieldName" : "rideCount",
+      "javaType" : "int",
+      "isId" : false
+    }, {
+      "fieldName" : "lastRideDate",
+      "javaType" : "LocalDateTime",
+      "isId" : false
+    }, {
+      "fieldName" : "recordedRideIds",
+      "javaType" : "List<Long>",
+      "isId" : false
+    } ]
+  } ],
+  "cassandraTables" : [ {
+    "className" : "LocationTrackingEvent",
+    "packageName" : "com.team21.uber.location.model",
+    "tableName" : "location_tracking",
+    "columns" : [ {
+      "fieldName" : "driverId",
+      "columnName" : "driver_id",
+      "javaType" : "String",
+      "isPartitionKey" : false,
+      "isClusteringKey" : false
+    }, {
+      "fieldName" : "timestamp",
+      "columnName" : "timestamp",
+      "javaType" : "Instant",
+      "isPartitionKey" : false,
+      "isClusteringKey" : false
+    }, {
+      "fieldName" : "trackingId",
+      "columnName" : "tracking_id",
+      "javaType" : "UUID",
+      "isPartitionKey" : false,
+      "isClusteringKey" : false
+    }, {
+      "fieldName" : "latitude",
+      "columnName" : "latitude",
+      "javaType" : "Double",
+      "isPartitionKey" : false,
+      "isClusteringKey" : false
+    }, {
+      "fieldName" : "longitude",
+      "columnName" : "longitude",
+      "javaType" : "Double",
+      "isPartitionKey" : false,
+      "isClusteringKey" : false
+    }, {
+      "fieldName" : "accuracy",
+      "columnName" : "accuracy",
+      "javaType" : "Double",
+      "isPartitionKey" : false,
+      "isClusteringKey" : false
+    } ]
+  } ],
+  "auth" : {
+    "userTable" : "users",
+    "userColumns" : [ {
+      "fieldName" : "id",
+      "columnName" : "id",
+      "javaType" : "Long",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : true,
+      "isGenerated" : true,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "name",
+      "columnName" : "name",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "email",
+      "columnName" : "email",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : true,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "password",
+      "columnName" : "password",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "phone",
+      "columnName" : "phone",
+      "javaType" : "String",
+      "nullable" : false,
+      "unique" : true,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "role",
+      "columnName" : "role",
+      "javaType" : "Role",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "status",
+      "columnName" : "status",
+      "javaType" : "UserStatus",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : true,
+      "relationKind" : null
+    }, {
+      "fieldName" : "preferences",
+      "columnName" : "preferences",
+      "javaType" : "Map<String,Object>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "createdAt",
+      "columnName" : "created_at",
+      "javaType" : "LocalDateTime",
+      "nullable" : false,
+      "unique" : false,
+      "required" : true,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : null
+    }, {
+      "fieldName" : "savedAddresses",
+      "columnName" : "saved_addresses",
+      "javaType" : "List<SavedAddress>",
+      "nullable" : true,
+      "unique" : false,
+      "required" : false,
+      "isId" : false,
+      "isGenerated" : false,
+      "isEnum" : false,
+      "relationKind" : "OneToMany"
+    } ],
+    "roleColumn" : "role",
+    "roleEnumJavaType" : "Role",
+    "roleEnumValues" : [ "RIDER", "ADMIN" ],
+    "adminLabel" : "ADMIN",
+    "emailColumn" : "email",
+    "passwordColumn" : "password",
+    "loginPath" : "/api/auth/register",
+    "loginVerb" : "POST"
+  }
+}

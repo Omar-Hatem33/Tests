@@ -1,0 +1,115 @@
+### Create 4 completed payments for user 1
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 1,
+  "userId": 1,
+  "amount": 75.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED",
+  "createdAt": "2026-03-10T09:00:00"
+}
+
+###
+
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 2,
+  "userId": 1,
+  "amount": 120.0,
+  "method": "CREDIT_CARD",
+  "status": "COMPLETED",
+  "createdAt": "2026-03-12T10:00:00"
+}
+
+###
+
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 3,
+  "userId": 1,
+  "amount": 50.0,
+  "method": "CASH",
+  "status": "COMPLETED",
+  "createdAt": "2026-03-14T11:00:00"
+}
+
+###
+
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 4,
+  "userId": 1,
+  "amount": 30.0,
+  "method": "WALLET",
+  "status": "COMPLETED",
+  "createdAt": "2026-03-16T12:00:00"
+}
+
+###
+
+### Create a pending payment for user 1
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 5,
+  "userId": 1,
+  "amount": 999.0,
+  "method": "CREDIT_CARD",
+  "status": "PENDING",
+  "createdAt": "2026-03-18T13:00:00"
+}
+
+
+### Create a test user via user-service
+POST http://localhost:8080/api/users
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "test@mail.com",
+  "password": "pass123",
+  "phone": "+201011111111",
+  "role": "RIDER"
+}
+###
+
+### Get summary for user 1
+### Expected: totalPayments=4, totalAmount=275,
+### methodBreakdown={"CREDIT_CARD":195,"CASH":50,"WALLET":30}
+GET http://localhost:8080/api/payments/user/1/summary
+
+###
+
+### Get summary for user with no payments
+### Create a payment for user 2 first to ensure user 2 exists in users table
+### then test a user that has no COMPLETED payments
+POST http://localhost:8080/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 6,
+  "userId": 6,
+  "amount": 40.0,
+  "method": "CASH",
+  "status": "PENDING",
+  "createdAt": "2026-03-20T14:00:00"
+}
+
+###
+
+### User with no COMPLETED payments - expect totalPayments=0, totalAmount=0
+GET http://localhost:8080/api/payments/user/6/summary
+
+###
+
+### Non-existent user - expect 404
+GET http://localhost:8080/api/payments/user/999/summary
