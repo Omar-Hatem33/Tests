@@ -43,6 +43,7 @@ spring:
 server:
   port: 8080
 feign:
+  # S2-EVENTS: Feign client URLs for inter-service communication
   user-service:
     url: http://user-service:8080
   driver-service:

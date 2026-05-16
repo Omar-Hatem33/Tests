@@ -5,10 +5,12 @@ import com.team21.uber.user.auth.dto.AuthResponse;
 import com.team21.uber.user.auth.dto.LoginRequest;
 import com.team21.uber.user.auth.dto.RegisterRequest;
 import com.team21.uber.user.events.EventPublisher;
+import com.team21.uber.user.messaging.publishers.UserEventPublisher;
 import com.team21.uber.user.model.Role;
 import com.team21.uber.user.model.User;
 import com.team21.uber.user.model.UserStatus;
 import com.team21.uber.user.repository.UserRepository;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,15 +26,18 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EventPublisher eventPublisher;
+    private final UserEventPublisher userEventPublisher;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
-                       EventPublisher eventPublisher) {
+                       EventPublisher eventPublisher,
+                       UserEventPublisher userEventPublisher) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.eventPublisher = eventPublisher;
+        this.userEventPublisher = userEventPublisher;
     }
 
     public AuthResponse register(RegisterRequest req) {
@@ -71,6 +76,8 @@ public class AuthService {
 
         // [S1-F10-f] Issue token: sub=email, uid=userId, role claim
         String token = jwtService.issueToken(saved.getId(), saved.getEmail(), saved.getRole().name());
+
+        userEventPublisher.publishUserRegistered(saved.getId(), saved.getEmail(), saved.getRole().name());
 
         // [S1-F10-g] 201 is set in AuthController — service just returns the body
         return new AuthResponse(token, jwtService.getExpirationMs());

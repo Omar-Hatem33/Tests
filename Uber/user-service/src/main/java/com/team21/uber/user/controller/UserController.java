@@ -4,6 +4,7 @@ import com.team21.uber.user.auth.dto.UpdateRoleRequest;
 import com.team21.uber.user.model.Role;
 import com.team21.uber.user.model.User;
 import com.team21.uber.user.service.UserService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -69,7 +70,14 @@ public class UserController {
 
 
     @PutMapping("/{id}/deactivate")
-    public User deactivateUser(@PathVariable Long id) {
+    public User deactivateUser(@PathVariable Long id,
+                               @RequestHeader("X-User-Id") Long callerId,
+                               @RequestHeader("X-User-Role") String callerRole) {
+
+        // must be the same user OR an ADMIN
+        if (!callerId.equals(id) && !callerRole.equals("ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not authorized to access this resource");
+        }
         return userService.deactivateUser(id);
     }
 
@@ -112,13 +120,16 @@ public class UserController {
 //        }
 //    }
     @GetMapping("/{id}/ride-summary")
-    public ResponseEntity<UserRideSummaryDTO> getUserRideSummary(@PathVariable Long id) {
-        try {
+    public ResponseEntity<UserRideSummaryDTO> getUserRideSummary(
+        @PathVariable Long id,
+        @RequestHeader("X-User-Id") Long callerId,
+        @RequestHeader("X-User-Role") String callerRole) {
+
+            if (!callerId.equals(id) && !callerRole.equals("ADMIN")) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not authorized to access this resource");
+            }
+
             return ResponseEntity.ok(userService.getUserRideSummary(id));
-        } catch (Exception e) {
-            e.printStackTrace(); // 👈 ADD THIS
-            return ResponseEntity.notFound().build();
-        }
     }
     @GetMapping("/{id}")
     @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")

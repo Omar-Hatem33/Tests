@@ -61,10 +61,7 @@ feign:
     url: http://driver-service:8080
   ride-service:
     url: http://ride-service:8080
-  location-service:
-    url: http://location-service:8080
-  payment-service:
-    url: http://payment-service:8080
+
 
 
 jwt:

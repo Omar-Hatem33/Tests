@@ -924,13 +924,17 @@
 //}
 package com.team21.uber.user.service;
 
+import com.team21.uber.contracts.dto.RideSummaryDTO;
+import com.team21.uber.contracts.feign.RideServiceClient;
 import com.team21.uber.user.auth.dto.UpdateRoleRequest;
 import com.team21.uber.user.cache.CacheInvalidator;
 import com.team21.uber.user.dto.*;
 import com.team21.uber.user.events.EventPublisher;
+import com.team21.uber.user.messaging.publishers.UserEventPublisher;
 import com.team21.uber.user.model.*;
 import com.team21.uber.user.repository.*;
 
+import feign.FeignException;
 import jakarta.transaction.Transactional;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
@@ -948,15 +952,21 @@ public class UserService {
     private final SavedAddressRepository savedAddressRepository;
     private final CacheInvalidator cacheInvalidator;
     private final EventPublisher eventPublisher;
+    private final UserEventPublisher userEventPublisher;
+    private final RideServiceClient rideServiceClient;
 
     public UserService(UserRepository repo,
                        SavedAddressRepository savedAddressRepository,
                        CacheInvalidator cacheInvalidator,
-                       EventPublisher eventPublisher) {
+                       EventPublisher eventPublisher,
+                       UserEventPublisher userEventPublisher,
+                       RideServiceClient rideServiceClient) {
         this.userRepository = repo;
         this.savedAddressRepository = savedAddressRepository;
         this.cacheInvalidator = cacheInvalidator;
         this.eventPublisher = eventPublisher;
+        this.userEventPublisher = userEventPublisher;
+        this.rideServiceClient = rideServiceClient;
     }
 
     // ── S1-F1: Search Users ───────────────────────────────────────────────────
@@ -1032,14 +1042,22 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        Long activeRideCount = userRepository.countActiveRidesByUserId(id);
-        if (activeRideCount != null && activeRideCount > 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has active rides");
+        if (user.getStatus() == UserStatus.DEACTIVATED) {
+            return user;
+        }
+        try {
+            int activeRideCount = rideServiceClient.getUserActiveRideCount(id);
+            if (activeRideCount > 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User has active rides");
+            }
+        } catch (FeignException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service temporarily unavailable");
         }
 
         user.setStatus(UserStatus.DEACTIVATED);
         User saved = userRepository.save(user);
         invalidateUserCaches(id);
+        userEventPublisher.publishUserDeactivated(id);
         return saved;
     }
 
@@ -1114,9 +1132,19 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<Object[]> results = userRepository.getRideSummaryByUserId(userId);
+        try {
+            RideSummaryDTO summaryDTO = rideServiceClient.getUserRideSummary(userId);
+            return UserRideSummaryDTO.builder()
+                    .userId(user.getId())
+                    .name(user.getName())
+                    .totalRides(summaryDTO.totalRides())
+                    .completedRides(summaryDTO.completedRides())
+                    .cancelledRides(summaryDTO.cancelledRides())
+                    .totalSpent(summaryDTO.totalSpent())
+                    .averageFare(summaryDTO.averageFare())
+                    .build();
 
-        if (results == null || results.isEmpty()) {
+        }catch (FeignException.NotFound e) {
             return UserRideSummaryDTO.builder()
                     .userId(user.getId())
                     .name(user.getName())
@@ -1126,18 +1154,9 @@ public class UserService {
                     .totalSpent(0.0)
                     .averageFare(0.0)
                     .build();
+        }catch (FeignException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service temporarily unavailable");
         }
-
-        Object[] r = results.get(0);
-        return UserRideSummaryDTO.builder()
-                .userId(((Number) r[0]).longValue())
-                .name((String) r[1])
-                .totalRides(((Number) r[2]).intValue())
-                .completedRides(((Number) r[3]).intValue())
-                .cancelledRides(((Number) r[4]).intValue())
-                .totalSpent(((Number) r[5]).doubleValue())
-                .averageFare(((Number) r[6]).doubleValue())
-                .build();
     }
 
     // ── S1-F6: Top Riders ─────────────────────────────────────────────────────

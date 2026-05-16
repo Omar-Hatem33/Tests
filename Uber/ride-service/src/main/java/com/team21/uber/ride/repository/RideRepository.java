@@ -1,7 +1,5 @@
 package com.team21.uber.ride.repository;
 
-
-
 import com.team21.uber.ride.model.Ride;
 import com.team21.uber.ride.model.RideStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,11 +13,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 
-
-
 @Repository
 public interface RideRepository extends JpaRepository<Ride, Long> {
-    // ── S3-f1 ──────────────────────────────────────────
+
+    // ── S3-F1 ──────────────────────────────────────────
     List<Ride> findByRequestedAtBetweenOrderByRequestedAtDesc(
             LocalDateTime startDate,
             LocalDateTime endDate
@@ -31,16 +28,14 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
             LocalDateTime endDate
     );
 
-
     boolean existsByUserIdAndStatusIn(Long userId, java.util.List<RideStatus> statuses);
 
+    // ── S3-F2 ──────────────────────────────────────────
+    // REMOVED: findDriverStatusById  — M3 uses Feign → driver-service GET /api/drivers/{id}
+    // KEPT   : updateDriverStatus    — still used by S3-F7 cancelRide until that is refactored
 
-
-    // S3-F2: get driver status (cross-service native SQL)
-    @Query(value = "SELECT status FROM drivers WHERE id = :driverId", nativeQuery = true)
-    String findDriverStatusById(@Param("driverId") Long driverId);
-
-    // S3-F2: update driver status (cross-service native SQL)
+    // S3-F2 / S3-F7: update driver status (cross-service native SQL)
+    // TODO(S3-F7): remove once cancelRide is refactored to publish ride.cancelled event
     @Modifying
     @Transactional
     @Query(value = "UPDATE drivers SET status = :status WHERE id = :driverId", nativeQuery = true)
@@ -61,12 +56,11 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
             @Param("lonMax") double lonMax
     );
 
-    // ── S3-f4 ──────────────────────────────────────────
+    // ── S3-F4 ──────────────────────────────────────────
 
     @Modifying
     @Query(value = "UPDATE drivers SET status = 'AVAILABLE' WHERE id = :driverId", nativeQuery = true)
     void setDriverAvailable(@Param("driverId") Long driverId);
-
 
     @Modifying
     @Query(value = """
@@ -77,13 +71,12 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
                               @Param("userId") Long userId,
                               @Param("amount") Double amount);
 
-    // ── S3-f5 ──────────────────────────────────────────
+    // ── S3-F5 ──────────────────────────────────────────
 
     @Query(value = "SELECT * FROM rides WHERE metadata ->> :key = :value", nativeQuery = true)
     List<Ride> findByMetadataField(@Param("key") String key, @Param("value") String value);
 
-
-    // ── S3-f6 ──────────────────────────────────────────
+    // ── S3-F6 ──────────────────────────────────────────
     @Query(value = """
     SELECT
         COUNT(*) AS totalRides,
@@ -96,22 +89,19 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     """, nativeQuery = true)
     List<Object[]> getRideAnalytics(@Param("startDate") LocalDateTime startDate,
                                     @Param("endDate") LocalDateTime endDate);
-    //S3-F7
+
+    // S3-F7
     @Modifying
     @Query(value = "UPDATE drivers SET status = 'AVAILABLE' WHERE id = :driverId", nativeQuery = true)
     void updateDriverStatusToAvailable(@Param("driverId") Long driverId);
 
-    // S3-F11: cross-service native SQL — look up user name
+    // ── S3-F11 ──────────────────────────────────────────
+    // REMOVED: findDriverNameById       — M3 uses Feign → driver-service GET /api/drivers/{id}
+    // REMOVED: findDriverVehicleTypeById — M3 uses Feign → driver-service GET /api/drivers/{id}
+
+    // KEPT: findUserNameById — still used by findUserName() for S3-F12 user existence check
+    // TODO(S3-F12): remove once getRecommendations is refactored to use Feign → user-service
     @Query(value = "SELECT name FROM users WHERE id = :userId", nativeQuery = true)
     String findUserNameById(@Param("userId") Long userId);
-
-    // S3-F11: cross-service native SQL — look up driver name
-    @Query(value = "SELECT name FROM drivers WHERE id = :driverId", nativeQuery = true)
-    String findDriverNameById(@Param("driverId") Long driverId);
-
-    // S3-F11: cross-service native SQL — look up driver vehicleType from JSONB
-    @Query(value = "SELECT vehicle_details->>'vehicleType' FROM drivers WHERE id = :driverId", nativeQuery = true)
-    String findDriverVehicleTypeById(@Param("driverId") Long driverId);
-
 }
 

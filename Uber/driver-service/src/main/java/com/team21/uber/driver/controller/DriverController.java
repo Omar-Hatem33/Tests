@@ -28,6 +28,14 @@ public class DriverController {
         return ResponseEntity.ok("OK");
     }
 
+    // ── Availability endpoint (called by ride-service via Feign) ──
+
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<DriverAvailabilityDTO> getDriverAvailability(@PathVariable Long id) {
+        Driver driver = driverService.getDriverByIdOrThrow(id);
+        return ResponseEntity.ok(new DriverAvailabilityDTO(driver.getId(), driver.getStatus()));
+    }
+
     // ── CRUD ─────────────────────────────────────────────────────
 
     @PostMapping
@@ -190,13 +198,7 @@ public class DriverController {
         if (request.getRating() < 1 || request.getRating() > 5) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Rating must be between 1 and 5");
         }
-        if (!driverService.rideExists(request.getRideId())) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Ride not found");
-        }
-        if (!driverService.isCompletedRideForDriver(request.getRideId(), id)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Ride must belong to this driver and be COMPLETED");
-        }
+        // M3: ride validation now handled inside rateDriver() via Feign → ride-service
         driverService.rateDriver(optionalDriver.get(), request);
         return ResponseEntity.ok().build();
     }

@@ -112,4 +112,25 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Object[]> findFareRevenueByVehicleType(
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
+
+
+    // ── For S5 new endpoint: GET /api/payments/user/{userId}/total ───────────────
+    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p " +
+            "WHERE p.userId = :userId AND p.status = :status " +
+            "AND p.createdAt BETWEEN :start AND :end")
+    Double sumAmountByUserAndStatusAndDateRange(
+            @Param("userId") Long userId,
+            @Param("status") PaymentStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    boolean existsByRideId(Long rideId);
+
+    @Query("SELECT p FROM Payment p WHERE p.rideId = :rideId AND p.status IN :statuses")
+    Optional<Payment> findByRideIdAndStatusIn(
+            @Param("rideId") Long rideId,
+            @Param("statuses") List<PaymentStatus> statuses);
+
+    Optional<Payment> findByRideIdAndStatus(Long rideId, PaymentStatus status);
+
 }

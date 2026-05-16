@@ -1,0 +1,500 @@
+### ─────────────────────────────────────────────────────────────
+### S5-EVENTS — RabbitMQ consumers are triggered indirectly.
+### You cannot call them via HTTP. Instead, test the OUTCOMES
+### by first setting up data, then checking results after the
+### event fires. See RabbitMQ section at the bottom for what
+### to observe in the management UI.
+### ─────────────────────────────────────────────────────────────
+
+### ─────────────────────────────────────────────────────────────
+### S5-F4 — Process Payment for Ride
+### ─────────────────────────────────────────────────────────────
+
+### [F4-1] SETUP — Create a ride in PAYMENT_PENDING status
+### Run this directly against ride-service (not through gateway yet)
+### This simulates what the saga would have done
+POST http://localhost:8083/api/rides
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "driverId": 5,
+  "status": "PAYMENT_PENDING",
+  "fare": 200.0,
+  "pickupLatitude": 30.044,
+  "pickupLongitude": 31.235,
+  "dropoffLatitude": 30.055,
+  "dropoffLongitude": 31.245
+}
+
+> {%
+    client.global.set("rideId", response.body.id);
+    client.log("Created ride with id: " + response.body.id);
+%}
+
+### [F4-2] SETUP — Create a PENDING payment manually for that ride
+### (normally created by the ride.completed consumer)
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+
+{
+  "rideId": {{rideId}},
+  "userId": 1,
+  "amount": 200.0,
+  "status": "PENDING"
+}
+
+> {%
+    client.global.set("pendingPaymentId", response.body.id);
+    client.log("Created pending payment with id: " + response.body.id);
+%}
+
+### ─────────────────────────────────────────────────────────────
+### [F4-3] HAPPY PATH — Valid method, ride is PAYMENT_PENDING
+### Expected: 201, payment status = COMPLETED
+### RabbitMQ: payment.completed event appears on payment.events exchange
+### ─────────────────────────────────────────────────────────────
+POST http://localhost:8085/api/payments/ride/{{rideId}}
+Content-Type: application/json
+
+{
+  "method": "CREDIT_CARD",
+  "cardLastFour": "4242"
+}
+
+> {%
+    client.test("Status is 201", function() {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+    });
+    client.test("Payment status is COMPLETED", function() {
+        client.assert(response.body.status === "COMPLETED", "Expected COMPLETED");
+    });
+    client.test("Transaction details contain surgeFee", function() {
+        client.assert(response.body.transactionDetails.surgeFee !== undefined, "surgeFee missing");
+    });
+    client.test("cardLastFour stored", function() {
+        client.assert(response.body.transactionDetails.cardLastFour === "4242", "cardLastFour mismatch");
+    });
+%}
+
+### ─────────────────────────────────────────────────────────────
+### [F4-4] WRONG RIDE STATUS — Ride is ACCEPTED not PAYMENT_PENDING
+### Expected: 400 "Ride is not awaiting payment"
+### RabbitMQ: nothing published
+### ─────────────────────────────────────────────────────────────
+
+### First create a ride with status ACCEPTED
+POST http://localhost:8083/api/rides
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "driverId": 5,
+  "status": "ACCEPTED",
+  "fare": 150.0,
+  "pickupLatitude": 30.044,
+  "pickupLongitude": 31.235,
+  "dropoffLatitude": 30.055,
+  "dropoffLongitude": 31.245
+}
+
+> {%
+    client.global.set("acceptedRideId", response.body.id);
+%}
+
+### Now try to pay for it
+POST http://localhost:8085/api/payments/ride/{{acceptedRideId}}
+Content-Type: application/json
+
+{
+  "method": "CREDIT_CARD",
+  "cardLastFour": "1234"
+}
+
+> {%
+    client.test("Status is 400", function() {
+        client.assert(response.status === 400, "Expected 400, got " + response.status);
+    });
+    client.test("Error message mentions awaiting payment", function() {
+        client.assert(
+            response.body.message.includes("not awaiting payment"),
+            "Wrong error: " + response.body.message
+        );
+    });
+%}
+
+### ─────────────────────────────────────────────────────────────
+### [F4-5] NO LOCAL PENDING PAYMENT ROW
+### Ride is PAYMENT_PENDING but no Payment row exists locally
+### Expected: 400 "No pending payment for this ride"
+### ─────────────────────────────────────────────────────────────
+
+### Create ride with PAYMENT_PENDING but do NOT create a payment row
+POST http://localhost:8083/api/rides
+Content-Type: application/json
+
+{
+  "userId": 2,
+  "driverId": 6,
+  "status": "PAYMENT_PENDING",
+  "fare": 100.0,
+  "pickupLatitude": 30.044,
+  "pickupLongitude": 31.235,
+  "dropoffLatitude": 30.055,
+  "dropoffLongitude": 31.245
+}
+
+> {%
+    client.global.set("noPendingRideId", response.body.id);
+%}
+###
+POST http://localhost:8085/api/payments/ride/{{noPendingRideId}}
+Content-Type: application/json
+
+{
+  "method": "CREDIT_CARD",
+  "cardLastFour": "9999"
+}
+
+> {%
+  client.test("Status is 400", function() {
+    client.assert(response.status === 400, "Expected 400, got " + response.status);
+  });
+  client.test("Error message mentions no pending payment", function() {
+    client.assert(
+      response.body.message.includes("No pending payment"),
+      "Wrong error: " + response.body.message
+    );
+  });
+%}
+
+### ─────────────────────────────────────────────────────────────
+### [F4-6] UNSUPPORTED METHOD — triggers payment.failed
+### Expected: 400, payment row status = FAILED
+### RabbitMQ: payment.failed published → compensation cascade begins
+###           ride-service consumer sets ride = PAYMENT_FAILED
+###           ride-service then publishes ride.cancelled(reason=payment_failed)
+###           payment-service consumer then refunds → payment.refunded
+###           ride-service sets ride = REFUNDED
+### ─────────────────────────────────────────────────────────────
+
+### Setup fresh ride + pending payment first (repeat F4-1 and F4-2 with new data)
+POST http://localhost:8083/api/rides
+Content-Type: application/json
+
+{
+  "userId": 3,
+  "driverId": 7,
+  "status": "PAYMENT_PENDING",
+  "fare": 180.0,
+  "pickupLatitude": 30.044,
+  "pickupLongitude": 31.235,
+  "dropoffLatitude": 30.055,
+  "dropoffLongitude": 31.245
+}
+
+> {%
+    client.global.set("failRideId", response.body.id);
+%}
+###
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+
+{
+  "rideId": {{failRideId}},
+  "userId": 3,
+  "amount": 180.0,
+  "status": "PENDING"
+}
+
+### Now trigger the failure
+POST http://localhost:8085/api/payments/ride/{{failRideId}}
+Content-Type: application/json
+
+{
+  "method": "BITCOIN",
+  "cardLastFour": null
+}
+
+> {%
+    client.test("Status is 400", function() {
+        client.assert(response.status === 400, "Expected 400, got " + response.status);
+    });
+    client.test("Error message mentions invalid method", function() {
+        client.assert(
+            response.body.message.toLowerCase().includes("invalid") ||
+            response.body.message.toLowerCase().includes("method"),
+            "Wrong error: " + response.body.message
+        );
+    });
+%}
+
+### [F4-6 VERIFY] Wait ~2 seconds then check the ride reached REFUNDED
+### Poll this until status = REFUNDED (saga cascade takes a moment)
+GET http://localhost:8083/api/rides/{{failRideId}}
+
+> {%
+    client.test("Ride eventually reaches REFUNDED", function() {
+        client.assert(
+            response.body.status === "REFUNDED" || response.body.status === "PAYMENT_FAILED",
+            "Ride status: " + response.body.status
+        );
+    });
+%}
+
+### ─────────────────────────────────────────────────────────────
+### [F4-7] RIDE NOT FOUND — Feign returns 404
+### Expected: 404
+### RabbitMQ: nothing published
+### ─────────────────────────────────────────────────────────────
+POST http://localhost:8085/api/payments/ride/999999
+Content-Type: application/json
+
+{
+  "method": "CREDIT_CARD",
+  "cardLastFour": "1111"
+}
+
+> {%
+    client.test("Status is 404", function() {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+    });
+%}
+
+### ─────────────────────────────────────────────────────────────
+### S5-F10 — Vehicle Type Revenue Breakdown
+### ─────────────────────────────────────────────────────────────
+
+### [F10-1] SETUP — Make sure drivers exist in driver-service
+### D1 = SEDAN, D2 = SUV, D3 = SEDAN
+POST http://localhost:8082/api/drivers
+Content-Type: application/json
+
+{
+  "name": "Driver SEDAN One",
+  "phone": "01000000001",
+  "status": "AVAILABLE",
+  "vehicleDetails": {
+    "vehicleType": "SEDAN",
+    "model": "Toyota Camry",
+    "plate": "AAA-001"
+  }
+}
+
+> {%
+    client.global.set("driverSedanOneId", response.body.id);
+%}
+###
+POST http://localhost:8082/api/drivers
+Content-Type: application/json
+
+{
+  "name": "Driver SUV One",
+  "phone": "01000000002",
+  "status": "AVAILABLE",
+  "vehicleDetails": {
+    "vehicleType": "SUV",
+    "model": "Honda CRV",
+    "plate": "BBB-002"
+  }
+}
+
+> {%
+  client.global.set("driverSuvId", response.body.id);
+%}
+
+### [F10-2] SETUP — Create COMPLETED rides for those drivers
+POST http://localhost:8083/api/rides
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "driverId": {{driverSedanOneId}},
+  "status": "COMPLETED",
+  "fare": 100.0,
+  "pickupLatitude": 30.0,
+  "pickupLongitude": 31.0,
+  "dropoffLatitude": 30.1,
+  "dropoffLongitude": 31.1
+}
+
+> {%
+    client.global.set("sedanRide1", response.body.id);
+%}
+
+###
+POST http://localhost:8083/api/rides
+Content-Type: application/json
+
+{
+  "userId": 2,
+  "driverId": {{driverSuvId}},
+  "status": "COMPLETED",
+  "fare": 200.0,
+  "pickupLatitude": 30.0,
+  "pickupLongitude": 31.0,
+  "dropoffLatitude": 30.1,
+  "dropoffLongitude": 31.1
+}
+
+> {%
+  client.global.set("suvRide1", response.body.id);
+%}
+
+### [F10-3] SETUP — Create COMPLETED payments with surgeFee in transactionDetails
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+
+{
+  "rideId": {{sedanRide1}},
+  "userId": 1,
+  "amount": 100.0,
+  "status": "COMPLETED",
+  "transactionDetails": {
+    "surgeFee": 15.0,
+    "gatewayResponse": "APPROVED"
+  }
+}
+###
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+
+{
+  "rideId": {{suvRide1}},
+  "userId": 2,
+  "amount": 200.0,
+  "status": "COMPLETED",
+  "transactionDetails": {
+    "surgeFee": 30.0,
+    "gatewayResponse": "APPROVED"
+  }
+}
+
+### ─────────────────────────────────────────────────────────────
+### [F10-4] HAPPY PATH — Revenue grouped by vehicle type
+### Expected: 200, SEDAN and SUV entries with correct totals
+### RabbitMQ: nothing — this is a read-only endpoint
+### ─────────────────────────────────────────────────────────────
+GET http://localhost:8085/api/payments/analytics/vehicle-type?startDate=2026-01-01&endDate=2026-12-31
+
+> {%
+    client.test("Status is 200", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Returns array", function() {
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+    client.test("Contains SEDAN entry", function() {
+        const sedan = response.body.find(e => e.vehicleType === "SEDAN");
+        client.assert(sedan !== undefined, "SEDAN entry missing");
+        client.assert(sedan.totalRevenue === 100.0, "SEDAN totalRevenue wrong: " + sedan.totalRevenue);
+        client.assert(sedan.surgeFeeRevenue === 15.0, "SEDAN surgeFee wrong: " + sedan.surgeFeeRevenue);
+        client.assert(sedan.baseFareRevenue === 85.0, "SEDAN baseFare wrong: " + sedan.baseFareRevenue);
+    });
+    client.test("Contains SUV entry", function() {
+        const suv = response.body.find(e => e.vehicleType === "SUV");
+        client.assert(suv !== undefined, "SUV entry missing");
+        client.assert(suv.totalRevenue === 200.0, "SUV totalRevenue wrong: " + suv.totalRevenue);
+    });
+%}
+
+### ─────────────────────────────────────────────────────────────
+### [F10-5] RIDE NOT FOUND — one rideId returns 404 from ride-service
+### Expected: 200 with remaining results, broken ride skipped gracefully
+### ─────────────────────────────────────────────────────────────
+
+### Insert a payment pointing to a non-existent ride
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+
+{
+  "rideId": 999999,
+  "userId": 1,
+  "amount": 500.0,
+  "status": "COMPLETED",
+  "transactionDetails": {
+    "surgeFee": 75.0
+  }
+}
+
+### Run analytics again — 999999 should be skipped, real entries still returned
+GET http://localhost:8085/api/payments/analytics/vehicle-type?startDate=2026-01-01&endDate=2026-12-31
+
+> {%
+    client.test("Status is 200 even with bad rideId", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Still returns vehicle type data", function() {
+        client.assert(response.body.length >= 1, "Expected at least one entry");
+    });
+%}
+
+### ─────────────────────────────────────────────────────────────
+### S5-EVENTS — Testing consumer outcomes via HTTP verification
+### You trigger events via ride-service actions, then verify
+### the payment-service side effects via GET calls here.
+### ─────────────────────────────────────────────────────────────
+
+### [EVENTS-1] SETUP — Trigger a ride.completed event by completing a ride
+### This causes ride-service to publish ride.completed →
+### payment-service consumer creates a PENDING payment + publishes payment.initiated
+PUT http://localhost:8083/api/rides/{{rideId}}/complete
+
+> {%
+    client.test("Ride completion accepted", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### [EVENTS-1 VERIFY] Wait ~1s then check payment was auto-created as PENDING
+### Poll GET /api/payments/search?rideId= if you have that, or check all payments
+GET http://localhost:8085/api/payments
+
+> {%
+    client.test("A PENDING payment was created by the consumer", function() {
+        const pending = response.body.filter(
+            p => p.rideId == client.global.get("rideId") && p.status === "PENDING"
+        );
+        client.assert(pending.length === 1, "Expected 1 PENDING payment, found: " + pending.length);
+    });
+%}
+
+### [EVENTS-2] IDEMPOTENCY — Trigger ride.completed again for the same ride
+### Expected: consumer no-ops, still only 1 PENDING payment
+PUT http://localhost:8083/api/rides/{{rideId}}/complete
+
+GET http://localhost:8085/api/payments
+
+> {%
+    client.test("Still only 1 payment after duplicate event", function() {
+        const payments = response.body.filter(
+            p => p.rideId == client.global.get("rideId")
+        );
+        client.assert(payments.length === 1, "Expected 1, found: " + payments.length);
+    });
+%}
+
+### [EVENTS-3] SETUP — Trigger ride.cancelled to test refund consumer
+### This causes ride-service to publish ride.cancelled →
+### payment-service consumer finds the PENDING payment, refunds it,
+### publishes payment.refunded
+PUT http://localhost:8083/api/rides/{{rideId}}/cancel
+
+> {%
+    client.test("Cancellation accepted", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### [EVENTS-3 VERIFY] Wait ~1s then check the payment was refunded
+GET http://localhost:8085/api/payments
+
+> {%
+    client.test("Payment was refunded by the consumer", function() {
+        const refunded = response.body.filter(
+            p => p.rideId == client.global.get("rideId") && p.status === "REFUNDED"
+        );
+        client.assert(refunded.length === 1,
+            "Expected 1 REFUNDED payment, found: " + refunded.length);
+    });
+%}

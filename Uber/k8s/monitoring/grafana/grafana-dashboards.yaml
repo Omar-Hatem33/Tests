@@ -8,9 +8,67 @@ data:
     {
       "title": "User Service Dashboard",
       "uid": "user-service-dash",
-      "panels": [],
       "schemaVersion": 38,
-      "version": 1
+      "version": 1,
+      "panels": [
+        {
+          "id": 1,
+          "title": "Error Rate",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 8},
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"},
+              "expr": "sum by (service) (count_over_time({app=\"uber\", service=\"user-service\", level=\"ERROR\"} [1m]))",
+              "legendFormat": "{{service}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Feign Call Outcomes",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 12,
+            "h": 8},
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"},
+              "expr": "sum by (service) (count_over_time({app=\"uber\", service=\"user-service\"} |= \"Feign call\" [5m]))",
+              "legendFormat": "{{service}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Correlation ID Trace",
+          "type": "logs",
+          "gridPos": {
+            "x": 0,
+            "y": 8,
+            "w": 24,
+            "h": 8},
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"},
+              "expr": "{app=\"uber\", service=\"user-service\"} | json | correlationId != \"\"",
+              "legendFormat": ""
+            }
+          ]
+        }
+      ]
     }
   driver-dashboard.json: |
     {

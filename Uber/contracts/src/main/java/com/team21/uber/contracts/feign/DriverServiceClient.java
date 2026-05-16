@@ -9,11 +9,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "driver-service", url = "${feign.driver-service.url}")
 public interface DriverServiceClient {
 
-    // Used by S3-F2, S3-F11, S3-F12, S4-F3, S4-F9, S5-F10
     @GetMapping("/api/drivers/{id}")
-    DriverDTO getDriver(@PathVariable Long id);
+    DriverDTO getDriver(@PathVariable("id") Long id);
 
-    // Used by S3-F2 availability pre-check
     @GetMapping("/api/drivers/{id}/availability")
-    DriverAvailabilityDTO getDriverAvailability(@PathVariable Long id);
+    DriverAvailabilityDTO getDriverAvailability(@PathVariable("id") Long id);
 }

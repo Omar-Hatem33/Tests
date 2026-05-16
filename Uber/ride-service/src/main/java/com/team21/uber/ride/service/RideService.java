@@ -14,6 +14,12 @@ import com.team21.uber.ride.repository.RideRepository;
 import com.team21.uber.ride.repository.RideStopRepository;
 import com.team21.uber.ride.repository.RideEventRepository;
 import com.team21.uber.ride.repository.UserNodeRepository;
+import com.team21.uber.ride.messaging.RideEventPublisher;
+import com.team21.uber.contracts.dto.DriverDTO;
+import com.team21.uber.contracts.dto.UserDTO;
+import com.team21.uber.contracts.events.RidePlacedEvent;
+import com.team21.uber.contracts.feign.DriverServiceClient;
+import com.team21.uber.contracts.feign.UserServiceClient;
 import org.springframework.data.neo4j.core.Neo4jClient;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
@@ -23,6 +29,9 @@ import com.team21.uber.ride.observer.EntityObserver;
 import com.team21.uber.ride.observer.MongoEventLogger;
 import com.team21.uber.ride.event.EventType;
 import com.team21.uber.ride.cache.CacheService;
+import feign.FeignException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,12 +47,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 public class RideService {
 
+    private static final Logger log = LoggerFactory.getLogger(RideService.class);
+
     private final RideRepository rideRepository;
     private final RideStopRepository rideStopRepository;
     private final UserNodeRepository userNodeRepository;
     private final CacheService cacheService;
     private final org.springframework.beans.factory.ObjectProvider<Neo4jClient> neo4jClientProvider;
     private final org.springframework.beans.factory.ObjectProvider<Driver> neo4jDriverProvider;
+    private final DriverServiceClient driverServiceClient;
+    private final RideEventPublisher rideEventPublisher;
+    private final UserServiceClient userServiceClient;
 
     private final List<EntityObserver> observers = new CopyOnWriteArrayList<>();
 
@@ -53,13 +67,19 @@ public class RideService {
                        RideEventRepository rideEventRepository,
                        CacheService cacheService,
                        org.springframework.beans.factory.ObjectProvider<Neo4jClient> neo4jClientProvider,
-                       org.springframework.beans.factory.ObjectProvider<Driver> neo4jDriverProvider) {
+                       org.springframework.beans.factory.ObjectProvider<Driver> neo4jDriverProvider,
+                       DriverServiceClient driverServiceClient,
+                       RideEventPublisher rideEventPublisher,
+                       UserServiceClient userServiceClient) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
         this.userNodeRepository = userNodeRepository;
         this.cacheService = cacheService;
         this.neo4jClientProvider = neo4jClientProvider;
         this.neo4jDriverProvider = neo4jDriverProvider;
+        this.driverServiceClient = driverServiceClient;
+        this.rideEventPublisher = rideEventPublisher;
+        this.userServiceClient = userServiceClient;
 
         // Register the GoF Observer
         MongoEventLogger logger = new MongoEventLogger(rideEventRepository, EventType.RIDE);
@@ -92,7 +112,6 @@ public class RideService {
         return rideRepository.save(ride);
     }
 
-
     // S3-F1
     public List<Ride> searchRides(String status, Long userId, Long driverId,
                                   LocalDate startDate, LocalDate endDate) {
@@ -118,25 +137,53 @@ public class RideService {
                 .toList();
     }
 
-    // S3-F2
+    // ── S3-F2: Assign Driver (M3 refactored — Feign + RabbitMQ) ──────────
     @Transactional
     public Ride assignDriver(Long rideId, Long driverId) {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
         if (ride.getStatus() != RideStatus.REQUESTED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not in REQUESTED status");
         }
-        String driverStatus = rideRepository.findDriverStatusById(driverId);
-        if (driverStatus == null) {
+
+        DriverDTO driver;
+        try {
+            log.info("Calling DriverServiceClient.getDriver with driverId={}", driverId);
+            driver = driverServiceClient.getDriver(driverId);
+            log.info("DriverServiceClient.getDriver returned driver id={}, status={}", driver.id(), driver.status());
+        } catch (FeignException.NotFound e) {
+            log.warn("Driver not found via Feign for driverId={}", driverId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        } catch (FeignException e) {
+            log.error("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Driver service temporarily unavailable");
         }
-        if (!driverStatus.equals("AVAILABLE")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not AVAILABLE");
+
+        if (!"AVAILABLE".equals(driver.status())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
         }
+
         ride.setDriverId(driverId);
         ride.setStatus(RideStatus.ACCEPTED);
-        rideRepository.updateDriverStatus(driverId, "BUSY");
-        return rideRepository.save(ride);
+        Ride saved = rideRepository.save(ride);
+
+        rideEventPublisher.publishRidePlaced(
+                new RidePlacedEvent(saved.getId(), saved.getUserId(), driverId)
+        );
+
+        Map<String, Object> eventPayload = new HashMap<>();
+        eventPayload.put("rideId", saved.getId());
+        Map<String, Object> details = new HashMap<>();
+        details.put("rideId", saved.getId());
+        details.put("driverId", driverId);
+        details.put("userId", saved.getUserId());
+        details.put("status", "ACCEPTED");
+        eventPayload.put("details", details);
+        notifyObservers("DRIVER_ASSIGNED", eventPayload);
+
+        return saved;
     }
 
     // S3-F3
@@ -209,7 +256,8 @@ public class RideService {
         long cancelledRides = ((Number) result[2]).longValue();
         double totalRevenue = ((Number) result[3]).doubleValue();
         double averageFare = ((Number) result[4]).doubleValue();
-        double completionRate = totalRides > 0 ? ((double) completedRides / totalRides) : 0.0;
+        double completionRate = totalRides > 0 ?
+                ((double) completedRides / totalRides) : 0.0;
 
         return new RideAnalyticsDTO.Builder()
                 .totalRides(totalRides)
@@ -292,7 +340,7 @@ public class RideService {
                 completedStops);
     }
 
-    // ── S3-F11: Record User-Driver Riding Pattern ──────────────────────
+    // ── S3-F11: Record User-Driver Riding Pattern (M3 refactored — Feign) ──
     public Map<String, Object> recordInteraction(Long rideId) {
         // b) Find ride by ID in PostgreSQL
         Ride ride = rideRepository.findById(rideId)
@@ -312,13 +360,13 @@ public class RideService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Neo4j unavailable");
         }
 
-        // d) Idempotency check
+        // d) Idempotency check — uses Neo4j only, no PG mutation
         boolean alreadyRecorded = false;
         long currentCount = 0L;
         try (Session session = idempDriver.session()) {
             Result r = session.run(
                     "MATCH (u:User {userId: $userId})-[rel:RODE_WITH]->(d:Driver {driverId: $driverId}) " +
-                    "RETURN coalesce(rel.rideCount, 0) AS rc, $rideId IN coalesce(rel.recordedRideIds, []) AS recorded",
+                            "RETURN coalesce(rel.rideCount, 0) AS rc, $rideId IN coalesce(rel.recordedRideIds, []) AS recorded",
                     Map.of("userId", userId, "driverId", driverId, "rideId", rideId));
             if (r.hasNext()) {
                 Record rec = r.next();
@@ -335,20 +383,45 @@ public class RideService {
             return result;
         }
 
-        // e) Look up user and driver via M1 cross-service native SQL pattern (best-effort)
-        String userName = null;
-        String driverName = null;
-        String vehicleType = null;
-        try { userName = rideRepository.findUserNameById(userId); } catch (Exception ignored) {}
-        try { driverName = rideRepository.findDriverNameById(driverId); } catch (Exception ignored) {}
-        try { vehicleType = rideRepository.findDriverVehicleTypeById(driverId); } catch (Exception ignored) {}
-        org.slf4j.LoggerFactory.getLogger(RideService.class)
-                .info("recordInteraction lookup userId={} userName={} driverId={} driverName={} vehicleType={}",
-                        userId, userName, driverId, driverName, vehicleType);
-        if (userName == null) userName = "User-" + userId;
-        if (driverName == null) driverName = "Driver-" + driverId;
+        // e) M3 change: Replace native SQL with Feign calls to user-service and driver-service
+        log.info("Calling UserServiceClient.getUser with userId={}", userId);
+        UserDTO userDTO;
+        try {
+            userDTO = userServiceClient.getUser(userId);
+            log.info("UserServiceClient.getUser returned name={}", userDTO.name());
+        } catch (FeignException.NotFound e) {
+            log.warn("User not found via Feign for userId={}", userId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        } catch (FeignException e) {
+            log.error("Feign call to user-service failed for userId={}: {}", userId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "User service temporarily unavailable");
+        }
 
-        // f) Merge nodes and relationship in Neo4j (raw Bolt Driver — SDN abstractions unreliable)
+        log.info("Calling DriverServiceClient.getDriver with driverId={}", driverId);
+        DriverDTO driverDTO;
+        try {
+            driverDTO = driverServiceClient.getDriver(driverId);
+            log.info("DriverServiceClient.getDriver returned name={}", driverDTO.name());
+        } catch (FeignException.NotFound e) {
+            log.warn("Driver not found via Feign for driverId={}", driverId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        } catch (FeignException e) {
+            log.error("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Driver service temporarily unavailable");
+        }
+
+        String userName = userDTO.name();
+        String driverName = driverDTO.name();
+        String vehicleType = (driverDTO.vehicleDetails() != null)
+                ? (String) driverDTO.vehicleDetails().getOrDefault("vehicleType", "UNKNOWN")
+                : "UNKNOWN";
+
+        log.info("recordInteraction resolved userId={} userName={} driverId={} driverName={} vehicleType={}",
+                userId, userName, driverId, driverName, vehicleType);
+
+        // f) Merge nodes and relationship in Neo4j (raw Bolt Driver)
         int rideCount = 1;
         Driver driver = neo4jDriverProvider.getIfAvailable();
         if (driver == null) {
@@ -357,22 +430,22 @@ public class RideService {
         try (Session session = driver.session(org.neo4j.driver.SessionConfig.forDatabase("neo4j"))) {
             String cypher =
                     "MERGE (u:User {userId: $userId}) " +
-                    "ON CREATE SET u.name = $userName " +
-                    "MERGE (d:Driver {driverId: $driverId}) " +
-                    "ON CREATE SET d.name = $driverName, d.vehicleType = $vehicleType " +
-                    "MERGE (u)-[r:RODE_WITH]->(d) " +
-                    "ON CREATE SET r.rideCount = 1, r.lastRideDate = $now, r.recordedRideIds = [$rideId] " +
-                    "ON MATCH SET r.rideCount = COALESCE(r.rideCount, 0) + 1, r.lastRideDate = $now, r.recordedRideIds = COALESCE(r.recordedRideIds, []) + $rideId " +
-                    "RETURN r.rideCount AS rc";
+                            "ON CREATE SET u.name = $userName " +
+                            "MERGE (d:Driver {driverId: $driverId}) " +
+                            "ON CREATE SET d.name = $driverName, d.vehicleType = $vehicleType " +
+                            "MERGE (u)-[r:RODE_WITH]->(d) " +
+                            "ON CREATE SET r.rideCount = 1, r.lastRideDate = $now, r.recordedRideIds = [$rideId] " +
+                            "ON MATCH SET r.rideCount = COALESCE(r.rideCount, 0) + 1, r.lastRideDate = $now, " +
+                            "            r.recordedRideIds = COALESCE(r.recordedRideIds, []) + $rideId " +
+                            "RETURN r.rideCount AS rc";
             Map<String, Object> params = new HashMap<>();
             params.put("userId", userId);
             params.put("userName", userName);
             params.put("driverId", driverId);
             params.put("driverName", driverName);
-            params.put("vehicleType", vehicleType != null ? vehicleType : "UNKNOWN");
+            params.put("vehicleType", vehicleType);
             params.put("rideId", rideId);
             params.put("now", LocalDateTime.now());
-            // Auto-commit transaction
             Result result = session.run(cypher, params);
             if (result.hasNext()) {
                 Record rec = result.next();
@@ -381,15 +454,13 @@ public class RideService {
             }
             result.consume();
         } catch (Exception ex) {
-            org.slf4j.LoggerFactory.getLogger(RideService.class)
-                    .error("Neo4j mergeRodeWith failed for user={} driver={} ride={}: {}",
-                            userId, driverId, rideId, ex.toString());
+            log.error("Neo4j mergeRodeWith failed for user={} driver={} ride={}: {}",
+                    userId, driverId, rideId, ex.toString());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Neo4j write failed: " + ex.getMessage());
         }
 
-        // g) Log INTERACTION_RECORDED event to MongoDB via Observer chain
-        //    (only on non-idempotent path)
+        // g) Log INTERACTION_RECORDED to MongoDB via Observer (non-idempotent path only)
         Map<String, Object> eventPayload = new HashMap<>();
         eventPayload.put("rideId", rideId);
         Map<String, Object> details = new HashMap<>();
@@ -404,15 +475,16 @@ public class RideService {
         cacheService.evictByPattern("ride-service::S3-F12::*");
 
         // h) Return 200 with confirmation
-        Map<String, Object> result = new HashMap<>();
-        result.put("message", "Interaction recorded successfully");
-        result.put("rideId", rideId);
-        result.put("userId", userId);
-        result.put("driverId", driverId);
-        result.put("rideCount", rideCount);
-        return result;
+        Map<String, Object> resultMap = new HashMap<>();
+        resultMap.put("message", "Interaction recorded successfully");
+        resultMap.put("rideId", rideId);
+        resultMap.put("userId", userId);
+        resultMap.put("driverId", driverId);
+        resultMap.put("rideCount", rideCount);
+        return resultMap;
     }
 
+    // Used by S3-F12 controller for user existence check (still local SQL until S3-F12 is refactored)
     public String findUserName(Long userId) {
         try { return rideRepository.findUserNameById(userId); }
         catch (Exception e) { return null; }
@@ -437,16 +509,16 @@ public class RideService {
         }
         try {
             java.util.Collection<Map<String, Object>> rows = neo4j.query(
-                    "MATCH (u:User {userId: $userId})-[:RODE_WITH]->(d:Driver) " +
-                    "WITH u, collect(d.driverId) AS userDrivers " +
-                    "MATCH (other:User)-[:RODE_WITH]->(d2:Driver) " +
-                    "WHERE other.userId <> $userId AND d2.driverId IN userDrivers " +
-                    "WITH u, other, userDrivers " +
-                    "MATCH (other)-[r2:RODE_WITH]->(rec:Driver) " +
-                    "WHERE NOT rec.driverId IN userDrivers " +
-                    "WITH rec, sum(r2.rideCount) AS score " +
-                    "RETURN rec.driverId AS driverId, rec.name AS name, rec.vehicleType AS vehicleType, score " +
-                    "ORDER BY score DESC LIMIT $limit")
+                            "MATCH (u:User {userId: $userId})-[:RODE_WITH]->(d:Driver) " +
+                                    "WITH u, collect(d.driverId) AS userDrivers " +
+                                    "MATCH (other:User)-[:RODE_WITH]->(d2:Driver) " +
+                                    "WHERE other.userId <> $userId AND d2.driverId IN userDrivers " +
+                                    "WITH u, other, userDrivers " +
+                                    "MATCH (other)-[r2:RODE_WITH]->(rec:Driver) " +
+                                    "WHERE NOT rec.driverId IN userDrivers " +
+                                    "WITH rec, sum(r2.rideCount) AS score " +
+                                    "RETURN rec.driverId AS driverId, rec.name AS name, rec.vehicleType AS vehicleType, score " +
+                                    "ORDER BY score DESC LIMIT $limit")
                     .bind(userId).to("userId")
                     .bind((long) limit).to("limit")
                     .fetch()
@@ -464,15 +536,13 @@ public class RideService {
             }
             return out;
         } catch (Exception ex) {
-            org.slf4j.LoggerFactory.getLogger(RideService.class)
-                    .warn("Recommendations Neo4j query failed for user={}: {}", userId, ex.toString());
+            log.warn("Recommendations Neo4j query failed for user={}: {}", userId, ex.toString());
             return new ArrayList<>();
         }
     }
 
     // ── Ride CRUD ──────────────────────────────────────────
 
-    // Ride CRUD
     public Ride createRide(Ride ride) {
         ride.setRequestedAt(LocalDateTime.now());
         ride.setStatus(RideStatus.REQUESTED);
