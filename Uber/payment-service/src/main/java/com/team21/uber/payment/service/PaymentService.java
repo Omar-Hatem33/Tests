@@ -1,7 +1,13 @@
 package com.team21.uber.payment.service;
 
+import com.team21.uber.contracts.dto.RideDTO;
+import com.team21.uber.contracts.events.PaymentCompletedEvent;
+import com.team21.uber.contracts.events.PaymentFailedEvent;
+import com.team21.uber.contracts.feign.RideServiceClient;
 import com.team21.uber.payment.dto.*;
 import com.team21.uber.payment.cache.CacheInvalidator;
+import com.team21.uber.payment.feign.UserServiceClient;
+import com.team21.uber.payment.messaging.publishers.PaymentEventPublisher;
 import com.team21.uber.payment.model.Payment;
 import com.team21.uber.payment.model.PaymentCoupon;
 import com.team21.uber.payment.dto.AppliedCouponDTO;
@@ -12,6 +18,7 @@ import com.team21.uber.payment.events.EventPublisher;
 import com.team21.uber.payment.repository.CouponRepository;
 import com.team21.uber.payment.repository.PaymentCouponRepository;
 import com.team21.uber.payment.repository.PaymentRepository;
+import feign.FeignException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +30,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,17 +47,27 @@ public class PaymentService {
     private final PaymentCouponRepository paymentCouponRepository;
     private final EventPublisher eventPublisher;
     private final CacheInvalidator cacheInvalidator;
+    private final UserServiceClient userServiceClient;
+    private final RideServiceClient rideServiceClient;
+    private final PaymentEventPublisher paymentEventPublisher;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PaymentEventPublisher.class);
 
     public PaymentService(PaymentRepository paymentRepository,
                           CouponRepository couponRepository,
                           PaymentCouponRepository paymentCouponRepository,
                           EventPublisher eventPublisher,
-                          CacheInvalidator cacheInvalidator) {
+                          CacheInvalidator cacheInvalidator,
+                          UserServiceClient userServiceClient,
+                          RideServiceClient rideServiceClient,
+                          PaymentEventPublisher paymentEventPublisher) {
         this.paymentRepository = paymentRepository;
         this.couponRepository = couponRepository;
         this.paymentCouponRepository = paymentCouponRepository;
         this.eventPublisher = eventPublisher;
         this.cacheInvalidator = cacheInvalidator;
+        this.userServiceClient=userServiceClient;
+        this.rideServiceClient = rideServiceClient;
+        this.paymentEventPublisher = paymentEventPublisher;
     }
 
     public Payment createPayment(Payment payment) {
@@ -148,25 +166,58 @@ public class PaymentService {
         return saved;
     }
 
+    // S5-F3  — REPLACED getUserPaymentSummary()
     @Cacheable(value = "S5-F3", key = "#userId")
     public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
-        if (paymentRepository.countUsersById(userId) == 0) {
+        // ── Feign: verify user exists ────────────────────────────────────────────
+        try {
+            userServiceClient.getUser(userId);
+        } catch (FeignException.NotFound e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
+
+        // ── Build breakdown from local payments table ────────────────────────────
         List<Object[]> rows = paymentRepository.getCompletedPaymentsByMethod(userId);
+
+        if (rows.isEmpty()) {
+            // User exists but has no COMPLETED payments — return empty summary (200)
+            return new UserPaymentSummaryDTO(userId, 0, 0.0, new LinkedHashMap<>());
+        }
+
         Map<String, Double> methodBreakdown = new LinkedHashMap<>();
         int totalPayment = 0;
         double totalAmount = 0.0;
+
         for (Object[] row : rows) {
             String method = (String) row[0];
-            long count = ((Number) row[1]).longValue();
-            double sum = ((Number) row[2]).doubleValue();
+            long count    = ((Number) row[1]).longValue();
+            double sum    = ((Number) row[2]).doubleValue();
             methodBreakdown.put(method, sum);
             totalPayment += count;
-            totalAmount += sum;
+            totalAmount  += sum;
         }
+
         return new UserPaymentSummaryDTO(userId, totalPayment, totalAmount, methodBreakdown);
     }
+//    @Cacheable(value = "S5-F3", key = "#userId")
+//    public UserPaymentSummaryDTO getUserPaymentSummary(Long userId) {
+//        if (paymentRepository.countUsersById(userId) == 0) {
+//            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+//        }
+//        List<Object[]> rows = paymentRepository.getCompletedPaymentsByMethod(userId);
+//        Map<String, Double> methodBreakdown = new LinkedHashMap<>();
+//        int totalPayment = 0;
+//        double totalAmount = 0.0;
+//        for (Object[] row : rows) {
+//            String method = (String) row[0];
+//            long count = ((Number) row[1]).longValue();
+//            double sum = ((Number) row[2]).doubleValue();
+//            methodBreakdown.put(method, sum);
+//            totalPayment += count;
+//            totalAmount += sum;
+//        }
+//        return new UserPaymentSummaryDTO(userId, totalPayment, totalAmount, methodBreakdown);
+//    }
 
     @Transactional
     public PaymentDetailsDTO applyCoupon(Long paymentId, Long couponId) {
@@ -372,34 +423,178 @@ public class PaymentService {
                 totalDiscount,
                 finalAmount);
     }
+
+//    M2
+//    @Transactional
+//    public PaymentDetailsDTO processPaymentForRide(Long rideId, PaymentRequestDTO request) {
+//        String rideStatus = paymentRepository.findRideStatusById(rideId);
+//        if (rideStatus == null) {
+//            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found with id: " + rideId);
+//        }
+//        if (!rideStatus.equals("COMPLETED")) {
+//            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+//                    "Ride is not completed. Current status: " + rideStatus);
+//        }
+//        if (paymentRepository.existsByRideIdAndStatus(rideId, PaymentStatus.COMPLETED)) {
+//            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "already paid");
+//        }
+//
+//        PaymentMethod paymentMethod;
+//        try {
+//            if (request == null || request.getMethod() == null || request.getMethod().isBlank()) {
+//                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment method is required");
+//            }
+//
+////            PaymentMethod paymentMethod;
+//            try {
+//                paymentMethod = PaymentMethod.valueOf(request.getMethod().trim().toUpperCase());
+//            } catch (IllegalArgumentException e) {
+//                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+//                        "Invalid payment method: " + request.getMethod());
+//            }
+//        } catch (IllegalArgumentException e) {
+//            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+//                    "Invalid payment method: " + request.getMethod());
+//        }
+//
+//        if (request.getCardLastFour() != null
+//                && !request.getCardLastFour().matches("\\d{4}")) {
+//            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+//                    "cardLastFour must be exactly 4 digits");
+//        }
+//
+//        List<Object[]> rideDetailsRows = paymentRepository.findRideDetailsById(rideId);
+//        double amount = 0.0;
+//        Long userId = 0L;
+//        if (rideDetailsRows != null && !rideDetailsRows.isEmpty()) {
+//            Object[] rideDetails = rideDetailsRows.get(0);
+//            if (rideDetails != null && rideDetails.length > 0 && rideDetails[0] != null)
+//                amount = ((Number) rideDetails[0]).doubleValue();
+//            if (rideDetails != null && rideDetails.length > 1 && rideDetails[1] != null)
+//                userId = ((Number) rideDetails[1]).longValue();
+//        }
+//
+//        double surgeFee;
+//        try {
+//            String metadataJson = paymentRepository.findRideMetadataById(rideId);
+//            if (metadataJson != null && !metadataJson.isBlank()) {
+//                Map<String, Object> metadata = new com.fasterxml.jackson.databind.ObjectMapper()
+//                        .readValue(metadataJson, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+//                Object multiplierObj = metadata.get("surgeMultiplier");
+//                if (multiplierObj != null) {
+//                    double surgeMultiplier = Double.parseDouble(multiplierObj.toString());
+//                    if (surgeMultiplier > 1.0) {
+//                        double baseFare = amount / surgeMultiplier;
+//                        surgeFee = baseFare * (surgeMultiplier - 1);
+//                    } else {
+//                        surgeFee = 0.0;
+//                    }
+//                } else {
+//                    surgeFee = amount * 0.15;
+//                }
+//            } else {
+//                surgeFee = amount * 0.15;
+//            }
+//        } catch (Exception e) {
+//            surgeFee = amount * 0.15;
+//        }
+//
+//        Map<String, Object> transactionDetails = new HashMap<>();
+//        transactionDetails.put("gatewayResponse", "APPROVED");
+//        transactionDetails.put("receiptUrl", "https://receipt.example.com/ride-" + rideId);
+//        transactionDetails.put("surgeFee", surgeFee);
+//        if (request.getCardLastFour() != null) {
+//            transactionDetails.put("cardLastFour", request.getCardLastFour());
+//        }
+//
+//        final long finalUserId = userId;
+//        final double finalAmount = amount;
+//        Payment payment = paymentRepository.findByRideIdNative(rideId).orElseGet(() -> {
+//            Payment p = new Payment();
+//            p.setRideId(rideId);
+//            p.setUserId(finalUserId);
+//            p.setAmount(finalAmount);
+//            p.setCreatedAt(LocalDateTime.now());
+//            p.setPaymentCoupons(new ArrayList<>());
+//            return p;
+//        });
+//
+//        payment.setStatus(PaymentStatus.COMPLETED);
+//        payment.setMethod(paymentMethod);
+//        payment.setTransactionDetails(transactionDetails);
+//
+//        Payment saved = paymentRepository.save(payment);
+//
+//        Map<String, Object> payload = new HashMap<>();
+//        payload.put("paymentId", saved.getId());
+//        payload.put("method", saved.getMethod().name());
+//        payload.put("amount", saved.getAmount());
+//        eventPublisher.notifyObservers("COMPLETED", payload);
+//        invalidatePaymentCaches(saved.getId());
+//
+//        return new PaymentDetailsDTO(
+//                saved.getId(),
+//                saved.getRideId(),
+//                saved.getUserId(),
+//                saved.getAmount(),
+//                saved.getMethod(),
+//                saved.getStatus(),
+//                saved.getTransactionDetails(),
+//                new ArrayList<>(),
+//                0.0,
+//                saved.getAmount());
+//    }
+
+//    M3
+
     @Transactional
     public PaymentDetailsDTO processPaymentForRide(Long rideId, PaymentRequestDTO request) {
-        String rideStatus = paymentRepository.findRideStatusById(rideId);
-        if (rideStatus == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found with id: " + rideId);
+
+        // 1. Feign → ride-service (replaces findRideStatusById + findRideDetailsById)
+        RideDTO ride;
+        try {
+            log.info("Calling RideServiceClient.getRide with args={}", rideId);
+            ride = rideServiceClient.getRide(rideId);
+            log.info("RideServiceClient.getRide returned successfully");
+        } catch (FeignException.NotFound e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Ride not found with id: " + rideId);
+        } catch (FeignException e) {
+            log.warn("Feign call to ride-service failed for rideId={}: {}", rideId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Ride service temporarily unavailable");
         }
-        if (!rideStatus.equals("COMPLETED")) {
+
+        // 2. Validate ride status — must be PAYMENT_PENDING (M3 saga status)
+        if (!"PAYMENT_PENDING".equals(ride.status())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Ride is not completed. Current status: " + rideStatus);
+                    "Ride is not awaiting payment. Current status: " + ride.status());
         }
-        if (paymentRepository.existsByRideIdAndStatus(rideId, PaymentStatus.COMPLETED)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "already paid");
+
+        // 3. Find local PENDING payment (created by ride.completed consumer)
+        Payment payment = paymentRepository
+                .findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No pending payment for this ride"));
+
+        // 4. Validate method
+        if (request == null || request.getMethod() == null || request.getMethod().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Payment method is required");
         }
 
         PaymentMethod paymentMethod;
         try {
-            if (request == null || request.getMethod() == null || request.getMethod().isBlank()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment method is required");
-            }
-
-//            PaymentMethod paymentMethod;
-            try {
-                paymentMethod = PaymentMethod.valueOf(request.getMethod().trim().toUpperCase());
-            } catch (IllegalArgumentException e) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Invalid payment method: " + request.getMethod());
-            }
+            paymentMethod = PaymentMethod.valueOf(request.getMethod().trim().toUpperCase());
         } catch (IllegalArgumentException e) {
+            // Invalid method — mark FAILED, publish payment.failed
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+            paymentEventPublisher.publishPaymentFailed(
+                    new PaymentFailedEvent(payment.getId(), rideId,
+                            "Unsupported payment method: " + request.getMethod())
+            );
+            log.info("Published payment.failed for rideId={}", rideId);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Invalid payment method: " + request.getMethod());
         }
@@ -410,42 +605,11 @@ public class PaymentService {
                     "cardLastFour must be exactly 4 digits");
         }
 
-        List<Object[]> rideDetailsRows = paymentRepository.findRideDetailsById(rideId);
-        double amount = 0.0;
-        Long userId = 0L;
-        if (rideDetailsRows != null && !rideDetailsRows.isEmpty()) {
-            Object[] rideDetails = rideDetailsRows.get(0);
-            if (rideDetails != null && rideDetails.length > 0 && rideDetails[0] != null)
-                amount = ((Number) rideDetails[0]).doubleValue();
-            if (rideDetails != null && rideDetails.length > 1 && rideDetails[1] != null)
-                userId = ((Number) rideDetails[1]).longValue();
-        }
+        // 5. Compute surge fee from ride fare (no cross-service call needed)
+        double amount = ride.fare() != null ? ride.fare() : payment.getAmount();
+        double surgeFee = amount * 0.15; // default — metadata-based calc removed (cross-service SQL gone)
 
-        double surgeFee;
-        try {
-            String metadataJson = paymentRepository.findRideMetadataById(rideId);
-            if (metadataJson != null && !metadataJson.isBlank()) {
-                Map<String, Object> metadata = new com.fasterxml.jackson.databind.ObjectMapper()
-                        .readValue(metadataJson, new com.fasterxml.jackson.core.type.TypeReference<>() {});
-                Object multiplierObj = metadata.get("surgeMultiplier");
-                if (multiplierObj != null) {
-                    double surgeMultiplier = Double.parseDouble(multiplierObj.toString());
-                    if (surgeMultiplier > 1.0) {
-                        double baseFare = amount / surgeMultiplier;
-                        surgeFee = baseFare * (surgeMultiplier - 1);
-                    } else {
-                        surgeFee = 0.0;
-                    }
-                } else {
-                    surgeFee = amount * 0.15;
-                }
-            } else {
-                surgeFee = amount * 0.15;
-            }
-        } catch (Exception e) {
-            surgeFee = amount * 0.15;
-        }
-
+        // 6. Mark COMPLETED
         Map<String, Object> transactionDetails = new HashMap<>();
         transactionDetails.put("gatewayResponse", "APPROVED");
         transactionDetails.put("receiptUrl", "https://receipt.example.com/ride-" + rideId);
@@ -454,24 +618,18 @@ public class PaymentService {
             transactionDetails.put("cardLastFour", request.getCardLastFour());
         }
 
-        final long finalUserId = userId;
-        final double finalAmount = amount;
-        Payment payment = paymentRepository.findByRideIdNative(rideId).orElseGet(() -> {
-            Payment p = new Payment();
-            p.setRideId(rideId);
-            p.setUserId(finalUserId);
-            p.setAmount(finalAmount);
-            p.setCreatedAt(LocalDateTime.now());
-            p.setPaymentCoupons(new ArrayList<>());
-            return p;
-        });
-
         payment.setStatus(PaymentStatus.COMPLETED);
         payment.setMethod(paymentMethod);
         payment.setTransactionDetails(transactionDetails);
-
         Payment saved = paymentRepository.save(payment);
 
+        // 7. Publish payment.completed (after commit)
+        paymentEventPublisher.publishPaymentCompleted(
+                new PaymentCompletedEvent(saved.getId(), rideId, saved.getAmount())
+        );
+        log.info("Published payment.completed for rideId={}", rideId);
+
+        // 8. MongoDB observer (existing pattern — keep)
         Map<String, Object> payload = new HashMap<>();
         payload.put("paymentId", saved.getId());
         payload.put("method", saved.getMethod().name());
@@ -539,5 +697,13 @@ public class PaymentService {
                     .status(ex.getStatusCode())
                     .body(Map.of("message", ex.getReason()));
         }
+    }
+
+
+// M3 NEW ENDPOINT — GET /api/payments/user/{userId}/total?startDate=&endDate=
+    public BigDecimal getUserPaymentTotal(Long userId, LocalDateTime start, LocalDateTime end) {
+        Double total = paymentRepository.sumAmountByUserAndStatusAndDateRange(
+                userId, PaymentStatus.COMPLETED, start, end);
+        return total == null ? BigDecimal.ZERO : BigDecimal.valueOf(total);
     }
 }

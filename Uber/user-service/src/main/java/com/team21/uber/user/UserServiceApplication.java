@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication(scanBasePackages = "com.team21.uber")
-@EnableFeignClients
+@EnableFeignClients(basePackages = "com.team21.uber")
 public class UserServiceApplication {
 
     public static void main(String[] args) {

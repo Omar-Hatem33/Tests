@@ -1,7 +1,13 @@
 package com.team21.uber.driver.service;
 
+import com.team21.uber.contracts.dto.DriverRideSummaryDTO;
 import com.team21.uber.driver.adapter.ElasticsearchHitAdapter;
+//import com.team21.uber.driver.client.RideServiceClient;
+import com.team21.uber.contracts.feign.RideServiceClient;
 import com.team21.uber.driver.dto.*;
+
+import com.team21.uber.contracts.dto.RideDTO;
+import com.team21.uber.driver.messaging.DriverEventPublisher;
 import com.team21.uber.driver.model.*;
 import com.team21.uber.driver.repository.DriverDocumentRepository;
 import com.team21.uber.driver.repository.DriverRepository;
@@ -9,6 +15,7 @@ import com.team21.uber.driver.repository.DriverSearchRepository;
 import com.team21.uber.driver.repository.RideNativeRepository;
 import co.elastic.clients.elasticsearch._types.query_dsl.QueryBuilders;
 import co.elastic.clients.elasticsearch._types.query_dsl.RangeQuery;
+import feign.FeignException;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +49,8 @@ public class DriverService {
     private final ElasticsearchOperations elasticsearchOperations;
     private final ElasticsearchHitAdapter elasticsearchHitAdapter;
     private final EventPublisher eventPublisher;
+    private final RideServiceClient rideServiceClient;
+    private final DriverEventPublisher driverEventPublisher;
 
     // Self-injected proxy reference so internal calls go through Spring AOP (cache, tx).
     private DriverService self;
@@ -56,7 +65,10 @@ public class DriverService {
                          DriverDocumentRepository driverDocumentRepository,
                          ObjectProvider<DriverSearchRepository> searchRepoProvider,
                         ElasticsearchOperations elasticsearchOperations,
-                         ElasticsearchHitAdapter elasticsearchHitAdapter, EventPublisher eventPublisher) {
+                         ElasticsearchHitAdapter elasticsearchHitAdapter,
+                         EventPublisher eventPublisher,
+                         RideServiceClient rideServiceClient,
+                         DriverEventPublisher driverEventPublisher) {
         this.driverRepository = driverRepository;
         this.rideNativeRepository = rideNativeRepository;
         this.driverDocumentRepository = driverDocumentRepository;
@@ -64,6 +76,8 @@ public class DriverService {
         this.elasticsearchOperations = elasticsearchOperations;
         this.elasticsearchHitAdapter = elasticsearchHitAdapter;
         this.eventPublisher = eventPublisher;
+        this.rideServiceClient = rideServiceClient;
+        this.driverEventPublisher = driverEventPublisher;
     }
 
     public void publish(String action, Long driverId, Map<String, Object> extra) {
@@ -400,6 +414,19 @@ public class DriverService {
 
         List<Object[]> results = driverRepository.getDriverEarnings(driverId, startDate, endDate);
         Object[] result = results.isEmpty() ? new Object[]{0, 0, 0} : results.get(0);
+        
+        // M3: Replace native SQL with Feign call to ride-service
+        String start = startDate != null ? startDate.toLocalDate().toString() : null;
+        String end   = endDate   != null ? endDate.toLocalDate().toString()   : null;
+
+         DriverRideSummaryDTO summary;
+        try {
+            summary = rideServiceClient.getDriverRideSummary(driverId, start, end);
+        } catch (FeignException.NotFound e) {
+            summary = DriverRideSummaryDTO.empty();
+        } catch (Exception e) {
+            log.warn("Feign call to ride-service failed for getDriverEarnings({}), falling back to local query: {}",
+                    driverId, e.getMessage());
 
         // return new DriverEarningsDTO(
         //         driver.getId(),
@@ -417,19 +444,42 @@ public class DriverService {
         .averageEarningsPerRide(((Number) result[2]).doubleValue())
         .build();
     }
+    return DriverEarningsDTO.builder()
+            .driverId(driver.getId())
+            .driverName(driver.getName())
+            .totalRides(summary.totalRides())
+            .totalEarnings(summary.totalEarnings())
+            .averageEarningsPerRide(summary.averageFare())
+            .build();
+}
 
     // ── S2-F4: Update Driver Availability ───────────────────────
 
     public boolean hasActiveRides(Long driverId) {
-        return rideNativeRepository.hasActiveRides(driverId);
+        // M3: use Feign → ride-service instead of direct DB query
+        try {
+            int count = rideServiceClient.getDriverActiveRideCount(driverId);
+            return count > 0;
+        } catch (FeignException.NotFound e) {
+            return false;
+        } catch (Exception e) {
+            // Soft fallback to local DB if ride-service is unavailable
+            log.warn("Feign call to ride-service failed for hasActiveRides({}), falling back to local query: {}",
+                    driverId, e.getMessage());
+            return rideNativeRepository.hasActiveRides(driverId);
+        }
     }
 
     @Transactional
     public Driver updateAvailability(Driver driver, AvailabilityUpdateRequest request) {
+        String oldStatus = driver.getStatus() != null ? driver.getStatus().name() : null;
         driver.setStatus(request.getStatus());
         Driver saved = driverRepository.save(driver);
         publish("AVAILABILITY_UPDATED", saved.getId(),
                 Map.of("status", String.valueOf(saved.getStatus())));
+        // M3: publish driver.status-changed to driver.events exchange
+        driverEventPublisher.publishStatusChanged(
+                saved.getId(), oldStatus, saved.getStatus().name());
         return saved;
     }
 
@@ -489,8 +539,44 @@ public class DriverService {
         return rideNativeRepository.isCompletedRideForDriver(rideId, driverId);
     }
 
+    /**
+     * Validates the ride via Feign → ride-service and rates the driver.
+     * M3: ride validation no longer queries the shared rides table directly.
+     */
     @Transactional
     public Driver rateDriver(Driver driver, DriverRatingRequest request) {
+        // M3: validate ride via Feign instead of native SQL
+        RideDTO ride;
+        try {
+            ride = rideServiceClient.getRide(request.getRideId());
+        } catch (FeignException.NotFound e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+        } catch (Exception e) {
+            log.warn("Feign call to ride-service failed for getRide({}), falling back to local query: {}",
+                    request.getRideId(), e.getMessage());
+            // Fallback: use existing local DB check
+            if (!rideNativeRepository.rideExists(request.getRideId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
+            }
+            if (!rideNativeRepository.isCompletedRideForDriver(request.getRideId(), driver.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Ride must belong to this driver and be COMPLETED");
+            }
+            ride = null;
+        }
+
+        // Validate ride belongs to this driver and is COMPLETED
+        if (ride != null) {
+            if (!driver.getId().equals(ride.driverId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Ride does not belong to this driver");
+            }
+            if (!"COMPLETED".equals(ride.status())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Ride must be COMPLETED to rate the driver");
+            }
+        }
+
         double currentRating = driver.getRating() == null ? 0.0 : driver.getRating();
         int currentTotalRatings = driver.getTotalRatings() == null ? 0 : driver.getTotalRatings();
         double newAverage = ((currentRating * currentTotalRatings) + request.getRating())
@@ -499,6 +585,9 @@ public class DriverService {
         driver.setTotalRatings(currentTotalRatings + 1);
         Driver saved = driverRepository.save(driver);
         publish("RATING_RECORDED", saved.getId(), Map.of());
+        // M3: publish driver.rated to driver.events exchange
+        driverEventPublisher.publishDriverRated(
+                saved.getId(), request.getRideId(), Double.valueOf(request.getRating()), null);
         return saved;
     }
 

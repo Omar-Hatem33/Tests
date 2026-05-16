@@ -10,10 +10,9 @@ import java.math.BigDecimal;
 @FeignClient(name = "payment-service", url = "${feign.payment-service.url}")
 public interface PaymentServiceClient {
 
-    // Used by S1-F6
     @GetMapping("/api/payments/user/{userId}/total")
     BigDecimal getUserPaymentTotal(
-            @PathVariable Long userId,
+            @PathVariable("userId") Long userId,
             @RequestParam String startDate,
             @RequestParam String endDate
     );

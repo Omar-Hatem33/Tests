@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -168,6 +169,17 @@ public class PaymentController {
             @RequestBody RefundRequestDTO request) {
         RefundResponseDTO response = paymentService.refundSurgeAdjusted(id, request);
         return ResponseEntity.ok(response);
+    }
+
+    //S5 new endpoint M3 ── GET /api/payments/user/{userId}/total?startDate=&endDate= ────────────────
+    @GetMapping("/user/{userId}/total")
+    public ResponseEntity<BigDecimal> getUserPaymentTotal(
+            @PathVariable Long userId,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        LocalDateTime start = parseDateTime(startDate, LocalTime.MIN);
+        LocalDateTime end   = parseDateTime(endDate,   LocalTime.MAX);
+        return ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, start, end));
     }
 
 }
