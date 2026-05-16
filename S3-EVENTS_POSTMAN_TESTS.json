@@ -1,0 +1,154 @@
+{
+  "info": {
+    "name": "S3-EVENTS: New Read Endpoints",
+    "description": "Test collection for 6 new read-only endpoints in ride-service (called by S1 and S2 via Feign)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "S1-F3: User Ride Summary",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/user/1/summary",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "user", "1", "summary"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "S1-F4: User Active Count",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/user/1/active-count",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "user", "1", "active-count"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "S1-F9: User Completed Count",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/user/1/completed-count",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "user", "1", "completed-count"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "S2-F3: Driver Ride Summary (No Date Range)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/driver/2/summary",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "driver", "2", "summary"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "S2-F3: Driver Ride Summary (With Date Range)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/driver/2/summary?startDate=2026-01-01&endDate=2026-05-16",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "driver", "2", "summary"],
+          "query": [
+            {
+              "key": "startDate",
+              "value": "2026-01-01"
+            },
+            {
+              "key": "endDate",
+              "value": "2026-05-16"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "S2-F4: Driver Active Count",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/driver/2/active-count",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "driver", "2", "active-count"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "S2-F6: Driver Completed Count",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/driver/2/completed-count",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "driver", "2", "completed-count"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Test: Non-existent User Summary (should return zeros)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/user/99999/summary",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "user", "99999", "summary"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Test: Non-existent Driver Summary (should return zeros)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/api/rides/driver/99999/summary",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8080",
+          "path": ["api", "rides", "driver", "99999", "summary"]
+        }
+      },
+      "response": []
+    }
+  ]
+}

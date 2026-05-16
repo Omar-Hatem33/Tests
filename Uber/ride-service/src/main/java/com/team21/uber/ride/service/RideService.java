@@ -6,6 +6,8 @@ import com.team21.uber.ride.dto.RideAnalyticsDTO;
 import com.team21.uber.ride.dto.FareEstimateDTO;
 import com.team21.uber.ride.dto.FareEstimateRequest;
 import com.team21.uber.ride.dto.RideDetailsDTO;
+import com.team21.uber.ride.dto.RideSummaryDTO;
+import com.team21.uber.ride.dto.DriverRideSummaryDTO;
 import com.team21.uber.ride.model.Ride;
 import com.team21.uber.ride.model.RideStatus;
 import com.team21.uber.ride.model.RideStop;
@@ -18,6 +20,7 @@ import com.team21.uber.ride.messaging.RideEventPublisher;
 import com.team21.uber.contracts.dto.DriverDTO;
 import com.team21.uber.contracts.dto.UserDTO;
 import com.team21.uber.contracts.events.RidePlacedEvent;
+import com.team21.uber.contracts.events.RideCancelledEvent;
 import com.team21.uber.contracts.feign.DriverServiceClient;
 import com.team21.uber.contracts.feign.UserServiceClient;
 import org.springframework.data.neo4j.core.Neo4jClient;
@@ -269,20 +272,34 @@ public class RideService {
                 .build();
     }
 
-    // S3-F7
+    // S3-F7 — Cancel Ride (M3 refactored)
+    // M3 change: Remove direct driver update. Publish ride.cancelled event.
+    // Driver re-availability happens asynchronously when driver-service consumes the event.
     @Transactional
     public void cancelRide(Long id) {
+        // 1. Find ride by ID → 404 if not found
         Ride ride = rideRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
+        // 2. Validate status IN (REQUESTED, ACCEPTED) → 400 if not
         if (ride.getStatus() != RideStatus.REQUESTED && ride.getStatus() != RideStatus.ACCEPTED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Only REQUESTED or ACCEPTED rides can be cancelled");
+                    "Only REQUESTED or ACCEPTED rides can be cancelled. Current status: " + ride.getStatus());
         }
+
+        // 3. Set ride status = CANCELLED
         ride.setStatus(RideStatus.CANCELLED);
-        if (ride.getDriverId() != null) {
-            rideRepository.updateDriverStatus(ride.getDriverId(), "AVAILABLE");
-        }
-        rideRepository.save(ride);
+        Ride saved = rideRepository.save(ride);
+        log.info("S3-F7: Ride {} marked CANCELLED", id);
+
+        // 4. Publish ride.cancelled to ride.events exchange
+        // If driverId is null, the payload still contains it (null) — driver-service silently ignores
+        rideEventPublisher.publishRideCancelled(
+                new RideCancelledEvent(saved.getId(), saved.getUserId(), saved.getDriverId(), "user_requested")
+        );
+        log.info("S3-F7: Published ride.cancelled event for ride {} with reason=user_requested", id);
+
+        // 5. Driver re-availability happens asynchronously — driver-service consumes ride.cancelled
     }
 
     // S3-F8
@@ -576,5 +593,72 @@ public class RideService {
     public void deleteRide(Long id) {
         getRideById(id);
         rideRepository.deleteById(id);
+    }
+
+    // ── S3-EVENTS: New read endpoints for S1 and S2 teams ───────────
+
+    // S1-F3: User ride summary (totalRides, completedRides, cancelledRides, totalSpent, averageFare)
+    public com.team21.uber.ride.dto.RideSummaryDTO getUserRideSummary(Long userId) {
+        List<Object[]> result = rideRepository.getUserRideSummary(userId);
+        if (result.isEmpty()) {
+            return new com.team21.uber.ride.dto.RideSummaryDTO(0, 0, 0, 0.0, 0.0);
+        }
+        Object[] row = result.get(0);
+        return new com.team21.uber.ride.dto.RideSummaryDTO(
+                ((Number) row[0]).longValue(),        // totalRides
+                ((Number) row[1]).longValue(),        // completedRides
+                ((Number) row[2]).longValue(),        // cancelledRides
+                ((Number) row[3]).doubleValue(),      // totalSpent
+                ((Number) row[4]).doubleValue()       // averageFare
+        );
+    }
+
+    // S1-F4: Count user active rides (REQUESTED, ACCEPTED, IN_PROGRESS, COMPLETED, PAYMENT_PENDING)
+    public int getUserActiveRideCount(Long userId) {
+        return rideRepository.getUserActiveRideCount(userId);
+    }
+
+    // S1-F9: Count user completed rides (COMPLETED, PAID)
+    public long getUserCompletedRideCount(Long userId) {
+        return rideRepository.getUserCompletedRideCount(userId);
+    }
+
+    // S2-F3, S2-F12: Driver ride summary (without date range)
+    public com.team21.uber.ride.dto.DriverRideSummaryDTO getDriverRideSummary(Long driverId) {
+        List<Object[]> result = rideRepository.getDriverRideSummary(driverId);
+        if (result.isEmpty()) {
+            return new com.team21.uber.ride.dto.DriverRideSummaryDTO(0, 0.0, 0.0);
+        }
+        Object[] row = result.get(0);
+        return new com.team21.uber.ride.dto.DriverRideSummaryDTO(
+                ((Number) row[0]).longValue(),        // totalRides
+                ((Number) row[1]).doubleValue(),      // totalEarnings
+                ((Number) row[2]).doubleValue()       // averageFare
+        );
+    }
+
+    // S2-F3, S2-F12: Driver ride summary (with date range)
+    public com.team21.uber.ride.dto.DriverRideSummaryDTO getDriverRideSummaryByDateRange(
+            Long driverId, LocalDateTime startDate, LocalDateTime endDate) {
+        List<Object[]> result = rideRepository.getDriverRideSummaryByDateRange(driverId, startDate, endDate);
+        if (result.isEmpty()) {
+            return new com.team21.uber.ride.dto.DriverRideSummaryDTO(0, 0.0, 0.0);
+        }
+        Object[] row = result.get(0);
+        return new com.team21.uber.ride.dto.DriverRideSummaryDTO(
+                ((Number) row[0]).longValue(),        // totalRides
+                ((Number) row[1]).doubleValue(),      // totalEarnings
+                ((Number) row[2]).doubleValue()       // averageFare
+        );
+    }
+
+    // S2-F4: Count driver active rides (ACCEPTED, IN_PROGRESS, COMPLETED, PAYMENT_PENDING)
+    public int getDriverActiveRideCount(Long driverId) {
+        return rideRepository.getDriverActiveRideCount(driverId);
+    }
+
+    // S2-F6: Count driver completed rides (COMPLETED, PAID)
+    public long getDriverCompletedRideCount(Long driverId) {
+        return rideRepository.getDriverCompletedRideCount(driverId);
     }
 }
