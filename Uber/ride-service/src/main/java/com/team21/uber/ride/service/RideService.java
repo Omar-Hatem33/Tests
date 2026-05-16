@@ -18,6 +18,7 @@ import com.team21.uber.ride.messaging.RideEventPublisher;
 import com.team21.uber.contracts.dto.DriverDTO;
 import com.team21.uber.contracts.dto.UserDTO;
 import com.team21.uber.contracts.events.RidePlacedEvent;
+import com.team21.uber.contracts.events.RideCancelledEvent;
 import com.team21.uber.contracts.feign.DriverServiceClient;
 import com.team21.uber.contracts.feign.UserServiceClient;
 import org.springframework.data.neo4j.core.Neo4jClient;
@@ -269,20 +270,34 @@ public class RideService {
                 .build();
     }
 
-    // S3-F7
+    // S3-F7 — Cancel Ride (M3 refactored)
+    // M3 change: Remove direct driver update. Publish ride.cancelled event.
+    // Driver re-availability happens asynchronously when driver-service consumes the event.
     @Transactional
     public void cancelRide(Long id) {
+        // 1. Find ride by ID → 404 if not found
         Ride ride = rideRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
+        // 2. Validate status IN (REQUESTED, ACCEPTED) → 400 if not
         if (ride.getStatus() != RideStatus.REQUESTED && ride.getStatus() != RideStatus.ACCEPTED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Only REQUESTED or ACCEPTED rides can be cancelled");
+                    "Only REQUESTED or ACCEPTED rides can be cancelled. Current status: " + ride.getStatus());
         }
+
+        // 3. Set ride status = CANCELLED
         ride.setStatus(RideStatus.CANCELLED);
-        if (ride.getDriverId() != null) {
-            rideRepository.updateDriverStatus(ride.getDriverId(), "AVAILABLE");
-        }
-        rideRepository.save(ride);
+        Ride saved = rideRepository.save(ride);
+        log.info("S3-F7: Ride {} marked CANCELLED", id);
+
+        // 4. Publish ride.cancelled to ride.events exchange
+        // If driverId is null, the payload still contains it (null) — driver-service silently ignores
+        rideEventPublisher.publishRideCancelled(
+                new RideCancelledEvent(saved.getId(), saved.getUserId(), saved.getDriverId(), "user_requested")
+        );
+        log.info("S3-F7: Published ride.cancelled event for ride {} with reason=user_requested", id);
+
+        // 5. Driver re-availability happens asynchronously — driver-service consumes ride.cancelled
     }
 
     // S3-F8

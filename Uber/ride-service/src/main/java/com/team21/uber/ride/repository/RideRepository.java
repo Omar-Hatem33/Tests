@@ -32,15 +32,7 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
 
     // ── S3-F2 ──────────────────────────────────────────
     // REMOVED: findDriverStatusById  — M3 uses Feign → driver-service GET /api/drivers/{id}
-    // KEPT   : updateDriverStatus    — still used by S3-F7 cancelRide until that is refactored
-
-    // S3-F2 / S3-F7: update driver status (cross-service native SQL)
-    // TODO(S3-F7): remove once cancelRide is refactored to publish ride.cancelled event
-    @Modifying
-    @Transactional
-    @Query(value = "UPDATE drivers SET status = :status WHERE id = :driverId", nativeQuery = true)
-    void updateDriverStatus(@Param("driverId") Long driverId,
-                            @Param("status") String status);
+    // REMOVED: updateDriverStatus    — M3 publishes ride.cancelled event; driver-service consumes and updates
 
     // S3-F3: count nearby active rides for surge pricing
     @Query(value = """
@@ -90,10 +82,8 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     List<Object[]> getRideAnalytics(@Param("startDate") LocalDateTime startDate,
                                     @Param("endDate") LocalDateTime endDate);
 
-    // S3-F7
-    @Modifying
-    @Query(value = "UPDATE drivers SET status = 'AVAILABLE' WHERE id = :driverId", nativeQuery = true)
-    void updateDriverStatusToAvailable(@Param("driverId") Long driverId);
+    // S3-F7 — REMOVED: updateDriverStatusToAvailable
+    // Driver re-availability happens asynchronously when driver-service consumes ride.cancelled
 
     // ── S3-F11 ──────────────────────────────────────────
     // REMOVED: findDriverNameById       — M3 uses Feign → driver-service GET /api/drivers/{id}
