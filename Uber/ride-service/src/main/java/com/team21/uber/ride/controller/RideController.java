@@ -5,6 +5,8 @@ import com.team21.uber.ride.dto.FareEstimateDTO;
 import com.team21.uber.ride.dto.FareEstimateRequest;
 import com.team21.uber.ride.dto.RideAnalyticsDTO;
 import com.team21.uber.ride.dto.RideDetailsDTO;
+import com.team21.uber.ride.dto.RideSummaryDTO;
+import com.team21.uber.ride.dto.DriverRideSummaryDTO;
 import com.team21.uber.ride.model.Ride;
 import com.team21.uber.ride.service.RideService;
 
@@ -177,6 +179,52 @@ public class RideController {
     public ResponseEntity<Map<String, Object>> recordInteraction(@PathVariable Long rideId) {
         Map<String, Object> result = rideService.recordInteraction(rideId);
         return ResponseEntity.ok(result);
+    }
+
+    // ── S3-EVENTS: New read endpoints (called by S1 and S2 services via Feign) ────────────
+
+    // S1-F3: GET /api/rides/user/{userId}/summary
+    @GetMapping("/user/{userId}/summary")
+    public ResponseEntity<com.team21.uber.ride.dto.RideSummaryDTO> getUserRideSummary(@PathVariable Long userId) {
+        return ResponseEntity.ok(rideService.getUserRideSummary(userId));
+    }
+
+    // S1-F4: GET /api/rides/user/{userId}/active-count
+    @GetMapping("/user/{userId}/active-count")
+    public ResponseEntity<Integer> getUserActiveRideCount(@PathVariable Long userId) {
+        return ResponseEntity.ok(rideService.getUserActiveRideCount(userId));
+    }
+
+    // S1-F9: GET /api/rides/user/{userId}/completed-count
+    @GetMapping("/user/{userId}/completed-count")
+    public ResponseEntity<Long> getUserCompletedRideCount(@PathVariable Long userId) {
+        return ResponseEntity.ok(rideService.getUserCompletedRideCount(userId));
+    }
+
+    // S2-F3, S2-F12: GET /api/rides/driver/{driverId}/summary (with optional date range)
+    @GetMapping("/driver/{driverId}/summary")
+    public ResponseEntity<com.team21.uber.ride.dto.DriverRideSummaryDTO> getDriverRideSummary(
+            @PathVariable Long driverId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        if (startDate != null && endDate != null) {
+            LocalDateTime start = LocalDateTime.parse(startDate + "T00:00:00");
+            LocalDateTime end = LocalDateTime.parse(endDate + "T23:59:59");
+            return ResponseEntity.ok(rideService.getDriverRideSummaryByDateRange(driverId, start, end));
+        }
+        return ResponseEntity.ok(rideService.getDriverRideSummary(driverId));
+    }
+
+    // S2-F4: GET /api/rides/driver/{driverId}/active-count
+    @GetMapping("/driver/{driverId}/active-count")
+    public ResponseEntity<Integer> getDriverActiveRideCount(@PathVariable Long driverId) {
+        return ResponseEntity.ok(rideService.getDriverActiveRideCount(driverId));
+    }
+
+    // S2-F6: GET /api/rides/driver/{driverId}/completed-count
+    @GetMapping("/driver/{driverId}/completed-count")
+    public ResponseEntity<Long> getDriverCompletedRideCount(@PathVariable Long driverId) {
+        return ResponseEntity.ok(rideService.getDriverCompletedRideCount(driverId));
     }
 
     // ── Ride CRUD ──────────────────────────────────────────

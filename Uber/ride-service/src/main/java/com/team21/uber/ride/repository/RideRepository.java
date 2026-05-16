@@ -49,19 +49,8 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     );
 
     // ── S3-F4 ──────────────────────────────────────────
-
-    @Modifying
-    @Query(value = "UPDATE drivers SET status = 'AVAILABLE' WHERE id = :driverId", nativeQuery = true)
-    void setDriverAvailable(@Param("driverId") Long driverId);
-
-    @Modifying
-    @Query(value = """
-    INSERT INTO payments (ride_id, user_id, amount, method, status, transaction_details, created_at)
-    VALUES (:rideId, :userId, :amount, 'CASH', 'PENDING', '{}', NOW())
-    """, nativeQuery = true)
-    void createPendingPayment(@Param("rideId") Long rideId,
-                              @Param("userId") Long userId,
-                              @Param("amount") Double amount);
+    // REMOVED: setDriverAvailable — M3 publishes ride.completed event; driver-service consumes and updates
+    // REMOVED: createPendingPayment — M3 publishes ride.completed event; payment-service consumes and creates
 
     // ── S3-F5 ──────────────────────────────────────────
 
@@ -84,6 +73,80 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
 
     // S3-F7 — REMOVED: updateDriverStatusToAvailable
     // Driver re-availability happens asynchronously when driver-service consumes ride.cancelled
+
+    // ── S3-EVENTS: New read-only endpoints for S1 and S2 teams ───────────
+
+    // S1-F3: GET /api/rides/user/{userId}/summary
+    @Query(value = """
+    SELECT
+        COUNT(*) AS totalRides,
+        COALESCE(SUM(CASE WHEN status = 'COMPLETED' OR status = 'PAID' THEN 1 ELSE 0 END), 0) AS completedRides,
+        COALESCE(SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END), 0) AS cancelledRides,
+        COALESCE(SUM(CASE WHEN status = 'COMPLETED' OR status = 'PAID' THEN fare ELSE 0 END), 0) AS totalSpent,
+        COALESCE(AVG(CASE WHEN status = 'COMPLETED' OR status = 'PAID' THEN fare END), 0) AS averageFare
+    FROM rides
+    WHERE user_id = :userId
+    """, nativeQuery = true)
+    List<Object[]> getUserRideSummary(@Param("userId") Long userId);
+
+    // S1-F4: GET /api/rides/user/{userId}/active-count
+    @Query(value = """
+    SELECT COUNT(*) FROM rides
+    WHERE user_id = :userId
+    AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'PAYMENT_PENDING')
+    """, nativeQuery = true)
+    int getUserActiveRideCount(@Param("userId") Long userId);
+
+    // S1-F9: GET /api/rides/user/{userId}/completed-count
+    @Query(value = """
+    SELECT COUNT(*) FROM rides
+    WHERE user_id = :userId
+    AND status IN ('COMPLETED', 'PAID')
+    """, nativeQuery = true)
+    long getUserCompletedRideCount(@Param("userId") Long userId);
+
+    // S2-F3, S2-F12: GET /api/rides/driver/{driverId}/summary
+    @Query(value = """
+    SELECT
+        COUNT(*) AS totalRides,
+        COALESCE(SUM(CASE WHEN status = 'COMPLETED' OR status = 'PAID' THEN fare ELSE 0 END), 0) AS totalEarnings,
+        COALESCE(AVG(CASE WHEN status = 'COMPLETED' OR status = 'PAID' THEN fare END), 0) AS averageFare
+    FROM rides
+    WHERE driver_id = :driverId
+    """, nativeQuery = true)
+    List<Object[]> getDriverRideSummary(@Param("driverId") Long driverId);
+
+    // S2-F3, S2-F12: GET /api/rides/driver/{driverId}/summary (with date range)
+    @Query(value = """
+    SELECT
+        COUNT(*) AS totalRides,
+        COALESCE(SUM(CASE WHEN status = 'COMPLETED' OR status = 'PAID' THEN fare ELSE 0 END), 0) AS totalEarnings,
+        COALESCE(AVG(CASE WHEN status = 'COMPLETED' OR status = 'PAID' THEN fare END), 0) AS averageFare
+    FROM rides
+    WHERE driver_id = :driverId
+    AND requested_at BETWEEN :startDate AND :endDate
+    """, nativeQuery = true)
+    List<Object[]> getDriverRideSummaryByDateRange(
+            @Param("driverId") Long driverId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    // S2-F4: GET /api/rides/driver/{driverId}/active-count
+    @Query(value = """
+    SELECT COUNT(*) FROM rides
+    WHERE driver_id = :driverId
+    AND status IN ('ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'PAYMENT_PENDING')
+    """, nativeQuery = true)
+    int getDriverActiveRideCount(@Param("driverId") Long driverId);
+
+    // S2-F6: GET /api/rides/driver/{driverId}/completed-count
+    @Query(value = """
+    SELECT COUNT(*) FROM rides
+    WHERE driver_id = :driverId
+    AND status IN ('COMPLETED', 'PAID')
+    """, nativeQuery = true)
+    long getDriverCompletedRideCount(@Param("driverId") Long driverId);
 
     // ── S3-F11 ──────────────────────────────────────────
     // REMOVED: findDriverNameById       — M3 uses Feign → driver-service GET /api/drivers/{id}

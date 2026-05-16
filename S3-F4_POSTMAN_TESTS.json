@@ -1,0 +1,707 @@
+{
+  "info": {
+    "name": "S3-F4 Complete Ride - Saga Trigger Tests",
+    "description": "Postman collection for testing S3-F4 (Complete Ride) M3 refactored saga implementation. Tests all scenarios: happy path, pre-check failures, and cancellation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Setup Data",
+      "item": [
+        {
+          "name": "Create User (ID=10, ACTIVE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 10,\n  \"name\": \"Test User\",\n  \"email\": \"testuser@example.com\",\n  \"status\": \"ACTIVE\",\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Create a test user with ACTIVE status for S3-F4 pre-check validation"
+          }
+        },
+        {
+          "name": "Create Driver (ID=5, BUSY)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 5,\n  \"name\": \"Test Driver\",\n  \"email\": \"driver@example.com\",\n  \"status\": \"BUSY\",\n  \"licenseNumber\": \"DL123456\",\n  \"vehicleDetails\": {\"make\": \"Toyota\", \"model\": \"Prius\", \"vehicleType\": \"ECO\"}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "drivers"]
+            },
+            "description": "Create a test driver with BUSY status (actively assigned to a ride)"
+          }
+        },
+        {
+          "name": "Create Location for Driver (ID=5, Recent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driverId\": 5,\n  \"rideId\": 1,\n  \"latitude\": 40.7128,\n  \"longitude\": -74.0060,\n  \"timestamp\": \"2024-05-16T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/locations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "locations"]
+            },
+            "description": "Create a recent GPS location for the driver (within 5 minutes)"
+          }
+        },
+        {
+          "name": "Create Ride (ID=1, IN_PROGRESS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 1,\n  \"userId\": 10,\n  \"driverId\": 5,\n  \"pickupLatitude\": 40.7128,\n  \"pickupLongitude\": -74.0060,\n  \"dropoffLatitude\": 40.7580,\n  \"dropoffLongitude\": -73.9855,\n  \"status\": \"IN_PROGRESS\",\n  \"requestedAt\": \"2024-05-16T09:00:00Z\",\n  \"fare\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rides",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides"]
+            },
+            "description": "Create a ride in IN_PROGRESS status (ready for completion)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario A: Happy Path - Complete Ride Successfully",
+      "item": [
+        {
+          "name": "A1: Complete Ride (All Pre-Checks Pass)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/1/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "1", "complete"]
+            },
+            "description": "Complete ride with all pre-checks passing. Should return 200 with ride status=COMPLETED and ride.completed event published."
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/rides/1/complete",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "rides", "1", "complete"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": 1,\n  \"userId\": 10,\n  \"driverId\": 5,\n  \"pickupLatitude\": 40.7128,\n  \"pickupLongitude\": -74.0060,\n  \"dropoffLatitude\": 40.7580,\n  \"dropoffLongitude\": -73.9855,\n  \"status\": \"COMPLETED\",\n  \"fare\": 25.50,\n  \"requestedAt\": \"2024-05-16T09:00:00Z\",\n  \"completedAt\": \"2024-05-16T10:30:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "A2: Verify Ride Status is COMPLETED",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "1"]
+            },
+            "description": "Verify the ride status is COMPLETED after the completeRide call"
+          }
+        },
+        {
+          "name": "A3: Verify Ride Event Published (Check RabbitMQ)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/events?type=ride.completed&rideId=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "events"]
+            },
+            "description": "Query ride events to verify ride.completed was published (implementation-specific endpoint)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario B: Pre-Check Failure - User DEACTIVATED",
+      "item": [
+        {
+          "name": "B1: Update User to DEACTIVATED",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DEACTIVATED\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "10"]
+            },
+            "description": "Update user status to DEACTIVATED to simulate pre-check failure"
+          }
+        },
+        {
+          "name": "B2: Attempt Complete Ride (Pre-Check Fails: User DEACTIVATED)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/1/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "1", "complete"]
+            },
+            "description": "Attempt to complete ride with DEACTIVATED user. Should return 400 Bad Request and NOT publish event."
+          },
+          "response": [
+            {
+              "name": "Failure Response - User DEACTIVATED",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/rides/1/complete",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "rides", "1", "complete"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"User must be ACTIVE to complete a ride. Current status: DEACTIVATED\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "B3: Verify Ride Status Still IN_PROGRESS",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "1"]
+            },
+            "description": "Verify the ride status remains IN_PROGRESS after failed pre-check"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenario C: Pre-Check Failure - Driver Not BUSY",
+      "item": [
+        {
+          "name": "C1: Reset User to ACTIVE",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "10"]
+            },
+            "description": "Reset user status back to ACTIVE for next scenario"
+          }
+        },
+        {
+          "name": "C2: Update Driver to OFFLINE",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"OFFLINE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "drivers", "5"]
+            },
+            "description": "Update driver status to OFFLINE to simulate pre-check failure"
+          }
+        },
+        {
+          "name": "C3: Attempt Complete Ride (Pre-Check Fails: Driver Not BUSY)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/1/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "1", "complete"]
+            },
+            "description": "Attempt to complete ride with driver NOT in BUSY status. Should return 400 Bad Request."
+          },
+          "response": [
+            {
+              "name": "Failure Response - Driver Not BUSY",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/rides/1/complete",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "rides", "1", "complete"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Driver must be BUSY (actively assigned). Current status: OFFLINE\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scenario D: Pre-Check Failure - No Recent Location",
+      "item": [
+        {
+          "name": "D1: Reset Driver to BUSY",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BUSY\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "drivers", "5"]
+            },
+            "description": "Reset driver status back to BUSY"
+          }
+        },
+        {
+          "name": "D2: Update Driver Location to Stale (>5 minutes old)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driverId\": 5,\n  \"rideId\": 1,\n  \"latitude\": 40.7128,\n  \"longitude\": -74.0060,\n  \"timestamp\": \"2024-05-16T09:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/locations/5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "locations", "5"]
+            },
+            "description": "Update driver's GPS location to be older than 5 minutes to simulate pre-check failure"
+          }
+        },
+        {
+          "name": "D3: Attempt Complete Ride (Pre-Check Fails: No Recent Location)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/1/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "1", "complete"]
+            },
+            "description": "Attempt to complete ride with stale location data (>5 min old). Should return 400 Bad Request."
+          },
+          "response": [
+            {
+              "name": "Failure Response - No Recent Location",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/rides/1/complete",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "rides", "1", "complete"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Driver not actively tracked (no recent location ping within 5 minutes)\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scenario E: Cancel Ride (S3-F7)",
+      "item": [
+        {
+          "name": "E1: Create Ride (ID=2, REQUESTED)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 2,\n  \"userId\": 10,\n  \"driverId\": null,\n  \"pickupLatitude\": 40.7128,\n  \"pickupLongitude\": -74.0060,\n  \"dropoffLatitude\": 40.7580,\n  \"dropoffLongitude\": -73.9855,\n  \"status\": \"REQUESTED\",\n  \"requestedAt\": \"2024-05-16T11:00:00Z\",\n  \"fare\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/rides",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides"]
+            },
+            "description": "Create a REQUESTED ride (not yet assigned to a driver)"
+          }
+        },
+        {
+          "name": "E2: Cancel Ride (driverId=null)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/2/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "2", "cancel"]
+            },
+            "description": "Cancel ride before driver assignment. Should publish ride.cancelled with driverId=null."
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/rides/2/cancel",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "rides", "2", "cancel"]
+                }
+              },
+              "status": "OK",
+              "code": 200
+            }
+          ]
+        },
+        {
+          "name": "E3: Verify Ride Status is CANCELLED",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "2"]
+            },
+            "description": "Verify the ride status is CANCELLED"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error Cases",
+      "item": [
+        {
+          "name": "E1: Complete Non-Existent Ride (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/999/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "999", "complete"]
+            },
+            "description": "Attempt to complete non-existent ride. Should return 404 Not Found."
+          },
+          "response": [
+            {
+              "name": "404 Response",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/rides/999/complete",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "rides", "999", "complete"]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"error\": \"Ride not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "E2: Complete CANCELLED Ride (400)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/2/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "2", "complete"]
+            },
+            "description": "Attempt to complete already-cancelled ride. Should return 400 Bad Request."
+          },
+          "response": [
+            {
+              "name": "400 Response",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/rides/2/complete",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "rides", "2", "complete"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Ride must be IN_PROGRESS to complete. Current status: CANCELLED\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "E3: Cancel COMPLETED Ride (400)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rides/1/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "rides", "1", "cancel"]
+            },
+            "description": "Attempt to cancel already-completed ride. Should return 400 Bad Request."
+          },
+          "response": [
+            {
+              "name": "400 Response",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/rides/1/cancel",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "rides", "1", "cancel"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Only REQUESTED or ACCEPTED rides can be cancelled. Current status: COMPLETED\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "YOUR_JWT_TOKEN_HERE",
+      "type": "string"
+    }
+  ]
+}
