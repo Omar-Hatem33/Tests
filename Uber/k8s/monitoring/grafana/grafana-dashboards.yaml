@@ -3,6 +3,7 @@ kind: ConfigMap
 metadata:
   name: grafana-dashboards
   namespace: monitoring
+
 data:
   user-dashboard.json: |
     {
@@ -10,95 +11,602 @@ data:
       "uid": "user-service-dash",
       "schemaVersion": 38,
       "version": 1,
+      "refresh": "30s",
+      "tags": ["user-service", "uber"],
+      "time": { "from": "now-1h", "to": "now" },
       "panels": [
         {
           "id": 1,
-          "title": "Error Rate",
-          "type": "timeseries",
-          "gridPos": {
-            "x": 0,
-            "y": 0,
-            "w": 12,
-            "h": 8},
+          "title": "User Service Error Logs",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
           "targets": [
             {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"},
-              "expr": "sum by (service) (count_over_time({app=\"uber\", service=\"user-service\", level=\"ERROR\"} [1m]))",
-              "legendFormat": "{{service}}"
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"user-service\"} |= \"ERROR\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "User Service Correlation ID Trace",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"user-service\"} | json | correlationId =~ \".+\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "User Service Log Rate by Level",
+          "type": "timeseries",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (level) (count_over_time({service=\"user-service\"}[1m]))",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "User Service HTTP Request Rate",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "rate(http_server_requests_seconds_count{job=\"user-service\"}[5m])",
+              "legendFormat": "{{uri}} {{method}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "User Service HTTP Latency Percentiles (P50/P95/P99)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m]))",
+              "legendFormat": "P99",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m]))",
+              "legendFormat": "P95",
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.50, rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m]))",
+              "legendFormat": "P50",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "User Service JVM Heap Memory",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "jvm_memory_used_bytes{job=\"user-service\", area=\"heap\"}",
+              "legendFormat": "Heap Used",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "jvm_memory_max_bytes{job=\"user-service\", area=\"heap\"}",
+              "legendFormat": "Heap Max",
+              "refId": "B"
+            }
+          ]
+        }
+      ]
+    }
+
+  driver-dashboard.json: |
+    {
+      "title": "Driver Service Dashboard",
+      "uid": "driver-service-dash",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "30s",
+      "tags": ["driver-service", "uber"],
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Driver Service Error Logs",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"driver-service\"} |= \"ERROR\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Driver Status Transitions",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"driver-service\"} |~ \"driver.status-changed|AVAILABLE|BUSY|OFFLINE\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Driver Service Log Rate by Level",
+          "type": "timeseries",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (level) (count_over_time({service=\"driver-service\"}[1m]))",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Driver Service HTTP Request Rate",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "rate(http_server_requests_seconds_count{job=\"driver-service\"}[5m])",
+              "legendFormat": "{{uri}} {{method}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Driver Service HTTP Latency Percentiles (P50/P95/P99)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{job=\"driver-service\"}[5m]))",
+              "legendFormat": "P99",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job=\"driver-service\"}[5m]))",
+              "legendFormat": "P95",
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.50, rate(http_server_requests_seconds_bucket{job=\"driver-service\"}[5m]))",
+              "legendFormat": "P50",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Driver Service JVM Heap Memory",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "jvm_memory_used_bytes{job=\"driver-service\", area=\"heap\"}",
+              "legendFormat": "Heap Used",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "jvm_memory_max_bytes{job=\"driver-service\", area=\"heap\"}",
+              "legendFormat": "Heap Max",
+              "refId": "B"
+            }
+          ]
+        }
+      ]
+    }
+
+  ride-dashboard.json: |
+    {
+      "title": "Ride Service Dashboard",
+      "uid": "ride-service-dash",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "30s",
+      "tags": ["ride-service", "uber"],
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Ride Service Error Logs",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"ride-service\"} |= \"ERROR\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Saga State Transitions",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"ride-service\"} |~ \"PAYMENT_PENDING|PAID|PAYMENT_FAILED|REFUNDED|ride.completed|ride.cancelled\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "RabbitMQ Event Audit (by routingKey)",
+          "type": "timeseries",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (routingKey) (count_over_time({service=\"ride-service\"} | json | routingKey =~ \".+\" [1m]))",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Ride Service HTTP Request Rate",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "rate(http_server_requests_seconds_count{job=\"ride-service\"}[5m])",
+              "legendFormat": "{{uri}} {{method}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Ride Service HTTP Latency Percentiles (P50/P95/P99)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{job=\"ride-service\"}[5m]))",
+              "legendFormat": "P99",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job=\"ride-service\"}[5m]))",
+              "legendFormat": "P95",
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.50, rate(http_server_requests_seconds_bucket{job=\"ride-service\"}[5m]))",
+              "legendFormat": "P50",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Ride Service JVM Heap Memory",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "jvm_memory_used_bytes{job=\"ride-service\", area=\"heap\"}",
+              "legendFormat": "Heap Used",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "jvm_memory_max_bytes{job=\"ride-service\", area=\"heap\"}",
+              "legendFormat": "Heap Max",
+              "refId": "B"
+            }
+          ]
+        }
+      ]
+    }
+
+  location-dashboard.json: |
+    {
+      "title": "Location Service Dashboard",
+      "uid": "location-service-dash",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "30s",
+      "tags": ["location-service", "uber"],
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Location Service Error Logs",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"location-service\"} |= \"ERROR\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Location Tracking Events",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"location-service\"} |~ \"location.tracked|ride.completed|ride.cancelled|TRIP_CANCELLED\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Location Service Log Rate by Level",
+          "type": "timeseries",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (level) (count_over_time({service=\"location-service\"}[1m]))",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Location Service HTTP Request Rate",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "rate(http_server_requests_seconds_count{job=\"location-service\"}[5m])",
+              "legendFormat": "{{uri}} {{method}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Location Service HTTP Latency Percentiles (P50/P95/P99)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{job=\"location-service\"}[5m]))",
+              "legendFormat": "P99",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job=\"location-service\"}[5m]))",
+              "legendFormat": "P95",
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.50, rate(http_server_requests_seconds_bucket{job=\"location-service\"}[5m]))",
+              "legendFormat": "P50",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Location Service JVM Heap Memory",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "jvm_memory_used_bytes{job=\"location-service\", area=\"heap\"}",
+              "legendFormat": "Heap Used",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "jvm_memory_max_bytes{job=\"location-service\", area=\"heap\"}",
+              "legendFormat": "Heap Max",
+              "refId": "B"
+            }
+          ]
+        }
+      ]
+    }
+
+  payment-dashboard.json: |
+    {
+      "title": "Payment Service Dashboard",
+      "uid": "payment-service-dash",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "30s",
+      "tags": ["payment-service", "uber"],
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Payment Error Rate",
+          "type": "timeseries",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (level) (count_over_time({service=\"payment-service\", level=\"ERROR\"}[1m]))",
+              "refId": "A"
             }
           ]
         },
         {
           "id": 2,
           "title": "Feign Call Outcomes",
-          "type": "timeseries",
-          "gridPos": {
-            "x": 12,
-            "y": 0,
-            "w": 12,
-            "h": 8},
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
           "targets": [
             {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"},
-              "expr": "sum by (service) (count_over_time({app=\"uber\", service=\"user-service\"} |= \"Feign call\" [5m]))",
-              "legendFormat": "{{service}}"
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"payment-service\"} |~ \"Feign|RideServiceClient|UserServiceClient|DriverServiceClient\"",
+              "refId": "A"
             }
           ]
         },
         {
           "id": 3,
-          "title": "Correlation ID Trace",
+          "title": "Slow Operations",
           "type": "logs",
-          "gridPos": {
-            "x": 0,
-            "y": 8,
-            "w": 24,
-            "h": 8},
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "options": { "dedupStrategy": "none", "enableLogDetails": true, "showTime": true, "sortOrder": "Descending" },
           "targets": [
             {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"},
-              "expr": "{app=\"uber\", service=\"user-service\"} | json | correlationId != \"\"",
-              "legendFormat": ""
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{service=\"payment-service\"} |~ \"Slow|elapsed=[0-9]{4,}\"",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Payment HTTP Request Rate",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "rate(http_server_requests_seconds_count{job=\"payment-service\"}[5m])",
+              "legendFormat": "{{uri}} {{method}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Payment HTTP Latency Percentiles (P50/P95/P99)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{job=\"payment-service\"}[5m]))",
+              "legendFormat": "P99",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job=\"payment-service\"}[5m]))",
+              "legendFormat": "P95",
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.50, rate(http_server_requests_seconds_bucket{job=\"payment-service\"}[5m]))",
+              "legendFormat": "P50",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Payment DB Connection Pool (HikariCP)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "hikaricp_connections_active{job=\"payment-service\"}",
+              "legendFormat": "Active",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "hikaricp_connections_max{job=\"payment-service\"}",
+              "legendFormat": "Max",
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "hikaricp_connections_pending{job=\"payment-service\"}",
+              "legendFormat": "Pending",
+              "refId": "C"
             }
           ]
         }
       ]
-    }
-  driver-dashboard.json: |
-    {
-      "title": "Driver Service Dashboard",
-      "uid": "driver-service-dash",
-      "panels": [],
-      "schemaVersion": 38,
-      "version": 1
-    }
-  ride-dashboard.json: |
-    {
-      "title": "Ride Service Dashboard",
-      "uid": "ride-service-dash",
-      "panels": [],
-      "schemaVersion": 38,
-      "version": 1
-    }
-  location-dashboard.json: |
-    {
-      "title": "Location Service Dashboard",
-      "uid": "location-service-dash",
-      "panels": [],
-      "schemaVersion": 38,
-      "version": 1
-    }
-  payment-dashboard.json: |
-    {
-      "title": "Payment Service Dashboard",
-      "uid": "payment-service-dash",
-      "panels": [],
-      "schemaVersion": 38,
-      "version": 1
     }

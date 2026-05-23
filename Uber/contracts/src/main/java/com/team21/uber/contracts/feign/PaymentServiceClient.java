@@ -13,7 +13,7 @@ public interface PaymentServiceClient {
     @GetMapping("/api/payments/user/{userId}/total")
     BigDecimal getUserPaymentTotal(
             @PathVariable("userId") Long userId,
-            @RequestParam String startDate,
-            @RequestParam String endDate
+            @RequestParam("startDate") String startDate,
+            @RequestParam("endDate") String endDate
     );
 }

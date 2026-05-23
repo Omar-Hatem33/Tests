@@ -42,6 +42,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
+        // When the gateway has already validated a JWT it strips spoofed X-User-* on inbound
+        // and re-injects them itself. Inter-service Feign calls also forward these headers
+        // from the upstream MDC. In both cases we trust them and skip the JWT chain.
+        String xUserId   = request.getHeader("X-User-Id");
+        String xUserRole = request.getHeader("X-User-Role");
+        if (xUserId != null && !xUserId.isBlank()) {
+            try {
+                Long uid = Long.valueOf(xUserId);
+                String roleHdr = (xUserRole == null || xUserRole.isBlank()) ? "RIDER" : xUserRole;
+                var injected = new UsernamePasswordAuthenticationToken(
+                        uid, null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + roleHdr)));
+                SecurityContextHolder.getContext().setAuthentication(injected);
+                filterChain.doFilter(request, response);
+                return;
+            } catch (NumberFormatException ignored) {
+                // fall through to the JWT path below
+            }
+        }
+
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || authHeader.isBlank()) {

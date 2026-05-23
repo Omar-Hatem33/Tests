@@ -1,12 +1,13 @@
 package com.team21.uber.driver.service;
 
 import com.team21.uber.contracts.dto.DriverRideSummaryDTO;
-import com.team21.uber.driver.adapter.ElasticsearchHitAdapter;
-//import com.team21.uber.driver.client.RideServiceClient;
 import com.team21.uber.contracts.feign.RideServiceClient;
+import com.team21.uber.contracts.feign.UserServiceClient;
+import com.team21.uber.driver.adapter.ElasticsearchHitAdapter;
 import com.team21.uber.driver.dto.*;
 
 import com.team21.uber.contracts.dto.RideDTO;
+import com.team21.uber.contracts.dto.DriverRideSummaryDTO;
 import com.team21.uber.driver.messaging.DriverEventPublisher;
 import com.team21.uber.driver.model.*;
 import com.team21.uber.driver.repository.DriverDocumentRepository;
@@ -27,6 +28,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import com.team21.uber.driver.events.EventPublisher;
+import com.team21.uber.contracts.dto.UserDTO;
+import com.team21.uber.contracts.dto.RideDTO;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -51,6 +54,8 @@ public class DriverService {
     private final EventPublisher eventPublisher;
     private final RideServiceClient rideServiceClient;
     private final DriverEventPublisher driverEventPublisher;
+    private final UserServiceClient userServiceClient;
+    private final com.team21.uber.contracts.lock.RedisLockService redisLockService;
 
     // Self-injected proxy reference so internal calls go through Spring AOP (cache, tx).
     private DriverService self;
@@ -68,7 +73,9 @@ public class DriverService {
                          ElasticsearchHitAdapter elasticsearchHitAdapter,
                          EventPublisher eventPublisher,
                          RideServiceClient rideServiceClient,
-                         DriverEventPublisher driverEventPublisher) {
+                         DriverEventPublisher driverEventPublisher,
+                         UserServiceClient userServiceClient,
+                         com.team21.uber.contracts.lock.RedisLockService redisLockService) {
         this.driverRepository = driverRepository;
         this.rideNativeRepository = rideNativeRepository;
         this.driverDocumentRepository = driverDocumentRepository;
@@ -78,6 +85,8 @@ public class DriverService {
         this.eventPublisher = eventPublisher;
         this.rideServiceClient = rideServiceClient;
         this.driverEventPublisher = driverEventPublisher;
+        this.userServiceClient=userServiceClient;
+        this.redisLockService = redisLockService;
     }
 
     public void publish(String action, Long driverId, Map<String, Object> extra) {
@@ -335,28 +344,32 @@ public class DriverService {
     // ── S2-F12: Driver Performance Dashboard ─────────────────────
     public DriverDashboardDTO getDriverDashboard(Long driverId) {
 
-    Driver driver = driverRepository.findById(driverId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
 
-    List<Object[]> stats = driverRepository.getDriverRideStats(driverId);
-    Object[] row = stats.isEmpty() ? new Object[]{0L, 0.0, 0.0} : stats.get(0);
+        // M3: replace SQL JOIN with Feign call to ride-service
+        DriverRideSummaryDTO summary;
+        try {
+            summary = rideServiceClient.getDriverRideSummary(driverId, null, null);
+        } catch (FeignException.NotFound e) {
+            summary = DriverRideSummaryDTO.empty();
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for dashboard {}: {}", driverId, e.getMessage());
+            summary = DriverRideSummaryDTO.empty();
+        }
 
-    Long totalRides      = row[0] != null ? ((Number) row[0]).longValue()  : 0L;
-    Double totalEarnings = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
-    Double avgFare       = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
+        publish("DASHBOARD_VIEWED", driverId, Map.of());
 
-    publish("DASHBOARD_VIEWED", driverId, Map.of());
-
-    return DriverDashboardDTO.builder()
-            .driverId(driver.getId())
-            .name(driver.getName())
-            .totalRides(totalRides)
-            .totalEarnings(totalEarnings)
-            .averageRideFare(avgFare)
-            .averageRating(driver.getRating())
-            .totalRatings(driver.getTotalRatings())
-            .build();
-}
+        return DriverDashboardDTO.builder()
+                .driverId(driver.getId())
+                .name(driver.getName())
+                .totalRides(summary.totalRides())
+                .totalEarnings(summary.totalEarnings())
+                .averageRideFare(summary.averageFare())
+                .averageRating(driver.getRating())
+                .totalRatings(driver.getTotalRatings())
+                .build();
+    }
 
     private List<DriverSearchResultDTO> fallbackFullTextSearch(
             String query, String vehicleType, String status,
@@ -412,75 +425,66 @@ public class DriverService {
         Driver driver = driverRepository.findById(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
 
-        List<Object[]> results = driverRepository.getDriverEarnings(driverId, startDate, endDate);
-        Object[] result = results.isEmpty() ? new Object[]{0, 0, 0} : results.get(0);
-        
-        // M3: Replace native SQL with Feign call to ride-service
         String start = startDate != null ? startDate.toLocalDate().toString() : null;
         String end   = endDate   != null ? endDate.toLocalDate().toString()   : null;
 
-         DriverRideSummaryDTO summary;
+        DriverRideSummaryDTO summary;
         try {
             summary = rideServiceClient.getDriverRideSummary(driverId, start, end);
         } catch (FeignException.NotFound e) {
             summary = DriverRideSummaryDTO.empty();
-        } catch (Exception e) {
-            log.warn("Feign call to ride-service failed for getDriverEarnings({}), falling back to local query: {}",
-                    driverId, e.getMessage());
-
-        // return new DriverEarningsDTO(
-        //         driver.getId(),
-        //         driver.getName(),
-        //         ((Number) result[0]).longValue(),
-        //         ((Number) result[1]).doubleValue(),
-        //         ((Number) result[2]).doubleValue()
-        // );
-        
-         return DriverEarningsDTO.builder()
-        .driverId(driver.getId())
-        .driverName(driver.getName())
-        .totalRides(((Number) result[0]).longValue())
-        .totalEarnings(((Number) result[1]).doubleValue())
-        .averageEarningsPerRide(((Number) result[2]).doubleValue())
-        .build();
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for getDriverEarnings({}): {}", driverId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
+        }
+        return DriverEarningsDTO.builder()
+                .driverId(driver.getId())
+                .driverName(driver.getName())
+                .totalRides(summary.totalRides())
+                .totalEarnings(summary.totalEarnings())
+                .averageEarningsPerRide(summary.averageFare())
+                .build();
     }
-    return DriverEarningsDTO.builder()
-            .driverId(driver.getId())
-            .driverName(driver.getName())
-            .totalRides(summary.totalRides())
-            .totalEarnings(summary.totalEarnings())
-            .averageEarningsPerRide(summary.averageFare())
-            .build();
-}
 
     // ── S2-F4: Update Driver Availability ───────────────────────
 
     public boolean hasActiveRides(Long driverId) {
-        // M3: use Feign → ride-service instead of direct DB query
         try {
             int count = rideServiceClient.getDriverActiveRideCount(driverId);
             return count > 0;
         } catch (FeignException.NotFound e) {
             return false;
-        } catch (Exception e) {
-            // Soft fallback to local DB if ride-service is unavailable
-            log.warn("Feign call to ride-service failed for hasActiveRides({}), falling back to local query: {}",
-                    driverId, e.getMessage());
-            return rideNativeRepository.hasActiveRides(driverId);
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for hasActiveRides({}): {}", driverId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
         }
     }
 
     @Transactional
     public Driver updateAvailability(Driver driver, AvailabilityUpdateRequest request) {
-        String oldStatus = driver.getStatus() != null ? driver.getStatus().name() : null;
-        driver.setStatus(request.getStatus());
-        Driver saved = driverRepository.save(driver);
-        publish("AVAILABILITY_UPDATED", saved.getId(),
-                Map.of("status", String.valueOf(saved.getStatus())));
-        // M3: publish driver.status-changed to driver.events exchange
-        driverEventPublisher.publishStatusChanged(
-                saved.getId(), oldStatus, saved.getStatus().name());
-        return saved;
+        boolean goingOffline = request.getStatus() == DriverStatus.OFFLINE;
+        String lockKey = "driver::lock::" + driver.getId();
+        String token = goingOffline
+                ? redisLockService.tryAcquire(lockKey, java.time.Duration.ofSeconds(10))
+                : null;
+        if (goingOffline && token == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Driver " + driver.getId() + " is locked by another request");
+        }
+        try {
+            String oldStatus = driver.getStatus() != null ? driver.getStatus().name() : null;
+            driver.setStatus(request.getStatus());
+            Driver saved = driverRepository.save(driver);
+            publish("AVAILABILITY_UPDATED", saved.getId(),
+                    Map.of("status", String.valueOf(saved.getStatus())));
+            driverEventPublisher.publishStatusChanged(
+                    saved.getId(), oldStatus, saved.getStatus().name());
+            return saved;
+        } finally {
+            if (token != null) {
+                redisLockService.release(lockKey, token);
+            }
+        }
     }
 
     // ── S2-F5: Filter by Vehicle Type ────────────────────────────
@@ -545,64 +549,41 @@ public class DriverService {
      */
     @Transactional
     public Driver rateDriver(Driver driver, DriverRatingRequest request) {
-        // M3: validate ride via Feign instead of native SQL
         RideDTO ride;
         try {
             ride = rideServiceClient.getRide(request.getRideId());
         } catch (FeignException.NotFound e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
-        } catch (Exception e) {
-            log.warn("Feign call to ride-service failed for getRide({}), falling back to local query: {}",
-                    request.getRideId(), e.getMessage());
-            // Fallback: use existing local DB check
-            if (!rideNativeRepository.rideExists(request.getRideId())) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found");
-            }
-            if (!rideNativeRepository.isCompletedRideForDriver(request.getRideId(), driver.getId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Ride must belong to this driver and be COMPLETED");
-            }
-            ride = null;
+        } catch (FeignException e) {
+            log.warn("ride-service unavailable for getRide({}): {}", request.getRideId(), e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ride service unavailable");
         }
 
-        // Validate ride belongs to this driver and is COMPLETED
-        if (ride != null) {
-            if (!driver.getId().equals(ride.driverId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Ride does not belong to this driver");
-            }
-            if (!"COMPLETED".equals(ride.status())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Ride must be COMPLETED to rate the driver");
-            }
+        if (!driver.getId().equals(ride.driverId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Ride does not belong to this driver");
+        }
+        if (!"COMPLETED".equals(ride.status())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Ride must be COMPLETED to rate the driver");
         }
 
-        double currentRating = driver.getRating() == null ? 0.0 : driver.getRating();
-        int currentTotalRatings = driver.getTotalRatings() == null ? 0 : driver.getTotalRatings();
-        double newAverage = ((currentRating * currentTotalRatings) + request.getRating())
-                / (currentTotalRatings + 1);
-        driver.setRating(newAverage);
-        driver.setTotalRatings(currentTotalRatings + 1);
-        Driver saved = driverRepository.save(driver);
+        int updated = driverRepository.applyRating(driver.getId(), request.getRating());
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+        }
+        Driver saved = driverRepository.findById(driver.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
         publish("RATING_RECORDED", saved.getId(), Map.of());
-        // M3: publish driver.rated to driver.events exchange
         driverEventPublisher.publishDriverRated(
                 saved.getId(), request.getRideId(), Double.valueOf(request.getRating()), null);
         return saved;
     }
 
-    // ── S2-F8: Verify Driver Document ────────────────────────────
-
     @Transactional
-    public Driver verifyDriverDocument(Long driverId, Long documentId, Long verifiedBy) {
-        // RBAC first — rider trying to verify must get 403 even if doc invalid
-        if (verifiedBy != null && verifiedBy > 0) {
-            String role = driverRepository.getUserRole(verifiedBy);
-            if (role != null && !role.equals("ADMIN")) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not admin");
-            }
-        }
+    public void verifyDriverDocument(Long driverId, Long documentId, Long callerId) {
 
+        // Local validations FIRST (no Feign call needed)
         Driver driver = driverRepository.findById(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found"));
 
@@ -616,16 +597,30 @@ public class DriverService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document is expired");
         }
 
+        // Feign call AFTER local validations pass
+        try {
+            UserDTO caller = userServiceClient.getUser(callerId);
+            if (!caller.role().equals("ADMIN")) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Verifier is not an admin");
+            }
+        } catch (FeignException.NotFound e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Verifier user not found");
+        } catch (FeignException e) {
+            log.warn("user-service unavailable for caller {}: {}", callerId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "User service unavailable");
+        }
+
+        // Update document
         document.setVerified(true);
         Map<String, Object> metadata = document.getMetadata();
         if (metadata == null) metadata = new HashMap<>();
         metadata.put("verifiedAt", LocalDateTime.now().toString());
-        metadata.put("verifiedBy", verifiedBy);
+        metadata.put("verifiedBy", callerId);
         document.setMetadata(metadata);
         driverDocumentRepository.save(document);
-        publish("DOCUMENT_VERIFIED", driverId, Map.of("documentId", String.valueOf(documentId)));
 
-        return driver;
+        // Publish RabbitMQ event
+        driverEventPublisher.publishDocumentVerified(driverId, documentId, callerId);
     }
     // ── S2-F9: Drivers with Expired Documents ────────────────────
 

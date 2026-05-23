@@ -1,0 +1,244 @@
+### ─────────────────────────────────────────────────────────────
+### AUTH
+### ─────────────────────────────────────────────────────────────
+
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "adminpass"
+}
+
+> {%
+    client.global.set("adminToken", response.body.token);
+    client.log("Admin token saved");
+%}
+
+###
+
+POST http://localhost:8081/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "rider@example.com",
+  "password": "riderpass"
+}
+
+> {%
+    client.global.set("riderToken", response.body.token);
+    client.log("Rider token saved");
+%}
+
+### ─────────────────────────────────────────────────────────────
+### S5-F3 — User Payment Summary
+### Only needs payment-service + user-service (both up)
+### ─────────────────────────────────────────────────────────────
+
+### [F3-SETUP] Create payments for user ID=2 (rider)
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+{
+  "rideId": 1,
+  "userId": 2,
+  "amount": 75.0,
+  "status": "COMPLETED",
+  "method": "CREDIT_CARD"
+}
+
+###
+
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+{
+  "rideId": 2,
+  "userId": 2,
+  "amount": 120.0,
+  "status": "COMPLETED",
+  "method": "CREDIT_CARD"
+}
+
+###
+
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+{
+  "rideId": 3,
+  "userId": 2,
+  "amount": 50.0,
+  "status": "COMPLETED",
+  "method": "CASH"
+}
+
+###
+
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+{
+  "rideId": 4,
+  "userId": 2,
+  "amount": 30.0,
+  "status": "COMPLETED",
+  "method": "WALLET"
+}
+
+###
+
+###
+# curl -v http://localhost:8080/api/users/2
+#-H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInVpZCI6MSwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzc4OTUyNjI2LCJleHAiOjE3NzkwMzkwMjZ9.mho1hJSzkuNW_7lNVOCy09fZ9AWO7mzyY9qVt3JYCvk"
+GET http://localhost:8081/api/users/2
+Authorization: Bearer {{riderToken}}
+X-User-Id: 2
+X-User-Role: RIDER
+
+
+###
+# curl -s http://localhost:8081/api/users
+#  -H "Authorization: Bearer <adminToken>"
+GET http://localhost:8081/api/users
+Authorization: Bearer {{adminToken}}
+
+###
+
+###
+### [F3-1] HAPPY PATH — user exists, has payments
+### Expected: 200, totalPayments=4, totalAmount=275, breakdown by method
+GET http://localhost:8085/api/payments/user/2/summary
+Authorization: Bearer {{riderToken}}
+X-User-Id: 2
+X-User-Role: RIDER
+
+> {%
+    client.log("F3-1 response: " + JSON.stringify(response.body));
+    client.test("Status is 200", function() {
+        client.assert(response.status === 200,
+            "Expected 200, got " + response.status);
+    });
+    client.test("Total payments count is 4", function() {
+        client.assert(response.body.totalPayments === 4,
+            "Expected 4, got " + response.body.totalPayments);
+    });
+    client.test("Total amount is 275", function() {
+        client.assert(response.body.totalAmount === 275.0,
+            "Expected 275.0, got " + response.body.totalAmount);
+    });
+    client.test("Method breakdown exists", function() {
+        client.assert(response.body.methodBreakdown !== undefined,
+            "methodBreakdown missing");
+    });
+    client.test("CREDIT_CARD total is 195", function() {
+        client.assert(response.body.methodBreakdown.CREDIT_CARD === 195.0,
+            "Expected 195, got " + response.body.methodBreakdown.CREDIT_CARD);
+    });
+    client.test("CASH total is 50", function() {
+        client.assert(response.body.methodBreakdown.CASH === 50.0,
+            "Expected 50, got " + response.body.methodBreakdown.CASH);
+    });
+    client.test("WALLET total is 30", function() {
+        client.assert(response.body.methodBreakdown.WALLET === 30.0,
+            "Expected 30, got " + response.body.methodBreakdown.WALLET);
+    });
+%}
+
+###
+
+### [F3-2] USER NOT FOUND — Feign to user-service returns 404
+### Expected: 404
+GET http://localhost:8085/api/payments/user/999999/summary
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+> {%
+    client.log("F3-2 response: " + JSON.stringify(response.body));
+    client.test("Status is 404", function() {
+        client.assert(response.status === 404,
+            "Expected 404, got " + response.status);
+    });
+%}
+
+###
+
+### [F3-3] OWNERSHIP VIOLATION — rider accessing another user's summary
+### Expected: 403
+GET http://localhost:8085/api/payments/user/1/summary
+Authorization: Bearer {{riderToken}}
+X-User-Id: 2
+X-User-Role: RIDER
+
+> {%
+    client.log("F3-3 response: " + JSON.stringify(response.body));
+    client.test("Status is 403", function() {
+        client.assert(response.status === 403,
+            "Expected 403, got " + response.status);
+    });
+%}
+
+###
+
+### [F3-4] USER EXISTS BUT ZERO PAYMENTS
+### Expected: 200 with empty breakdown, not 404
+### First register a fresh user with no payments
+POST http://localhost:8081/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test Rider 3",
+  "email": "emptyuser3@example.com",
+  "password": "emptypass1234",
+  "role": "RIDER",
+  "phone": "01088999999"
+}
+
+> {%
+    client.global.set("emptyUserId", response.body.id);
+    client.log("Empty user id: " + response.body.id);
+%}
+
+###
+
+GET http://localhost:8085/api/payments/user/5/summary
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+> {%
+    client.log("F3-4 response: " + JSON.stringify(response.body));
+    client.test("Status is 200 not 404", function() {
+        client.assert(response.status === 200,
+            "Expected 200, got " + response.status);
+    });
+    client.test("Total payments is 0", function() {
+        client.assert(response.body.totalPayments === 0,
+            "Expected 0, got " + response.body.totalPayments);
+    });
+    client.test("Total amount is 0", function() {
+        client.assert(response.body.totalAmount === 0.0,
+            "Expected 0, got " + response.body.totalAmount);
+    });
+    client.test("Method breakdown is empty object", function() {
+        client.assert(
+            Object.keys(response.body.methodBreakdown).length === 0,
+            "Expected empty breakdown"
+        );
+    });
+%}
+
+###

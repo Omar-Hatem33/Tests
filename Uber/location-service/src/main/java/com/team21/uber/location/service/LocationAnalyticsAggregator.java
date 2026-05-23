@@ -167,7 +167,7 @@ public class LocationAnalyticsAggregator {
                 LocalDateTime endLdt = endTime == null ? LocalDateTime.now().plusYears(10)
                         : LocalDateTime.ofInstant(endTime, ZoneOffset.UTC);
                 List<Location> locations = deliveryRepository
-                        .findByDriver_IdAndTimestampBetweenOrderByTimestampAsc(driverIdLong, startLdt, endLdt);
+                        .findByDriverIdAndTimestampBetweenOrderByTimestampAsc(driverIdLong, startLdt, endLdt);
                 for (Location loc : locations) {
                     if (loc == null) continue;
                     Double speed = null;

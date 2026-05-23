@@ -2,6 +2,7 @@ package com.team21.uber.user.repository;
 
 import com.team21.uber.user.model.Role;
 import com.team21.uber.user.model.User;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -90,4 +91,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
           AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS')
         """, nativeQuery = true)
     Long countActiveRidesByUserId(@Param("userId") Long userId);
+
+    @Query(value = "SELECT * FROM users WHERE preferences->>'language' = :lang LIMIT 100", nativeQuery = true)
+    List<User> findUsersByLanguagePreference(@Param("lang") String lang);
 }

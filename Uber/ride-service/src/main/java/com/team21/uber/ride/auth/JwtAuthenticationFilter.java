@@ -34,7 +34,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getServletPath();
         return path.startsWith("/api/auth/")
                 || path.startsWith("/actuator/")
-                || path.endsWith("/health");
+                || path.endsWith("/health")
+                || path.matches("/api/rides/(user|driver)/\\d+/(active-count|completed-count|summary)");
     }
 
     @Override

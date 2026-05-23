@@ -2,6 +2,7 @@ package com.team21.uber.payment.repository;
 
 import com.team21.uber.payment.model.Payment;
 import com.team21.uber.payment.model.PaymentStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -124,6 +125,17 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
+    // Batch totals for many users in a single SQL
+    @Query("SELECT p.userId, COALESCE(SUM(p.amount), 0) FROM Payment p " +
+            "WHERE p.userId IN :userIds AND p.status = :status " +
+            "AND p.createdAt BETWEEN :start AND :end " +
+            "GROUP BY p.userId")
+    List<Object[]> sumAmountByUsersAndStatusAndDateRange(
+            @Param("userIds") List<Long> userIds,
+            @Param("status") PaymentStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
     boolean existsByRideId(Long rideId);
 
     @Query("SELECT p FROM Payment p WHERE p.rideId = :rideId AND p.status IN :statuses")
@@ -131,6 +143,17 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             @Param("rideId") Long rideId,
             @Param("statuses") List<PaymentStatus> statuses);
 
-    Optional<Payment> findByRideIdAndStatus(Long rideId, PaymentStatus status);
+    List<Payment> findByRideIdAndStatus(Long rideId, PaymentStatus status);
+
+    @Query("SELECT p FROM Payment p WHERE p.status = 'COMPLETED' " +
+            "AND p.createdAt >= :start AND p.createdAt < :end")
+    List<Payment> findCompletedInDateRange(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            Pageable pageable);
+
+    @Query(value = "SELECT * FROM payments WHERE ride_id = :rideId LIMIT 1", nativeQuery = true)
+    Optional<Payment> findByRideId(@Param("rideId") Long rideId);
+
 
 }

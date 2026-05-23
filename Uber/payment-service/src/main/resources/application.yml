@@ -1,6 +1,3 @@
-#autoconfigure:
-#  exclude: ${SPRING_AUTOCONFIGURE_EXCLUDE:org.springframework.boot.mongodb.autoconfigure.MongoAutoConfiguration,org.springframework.boot.data.mongodb.autoconfigure.DataMongoAutoConfiguration,org.springframework.boot.data.mongodb.autoconfigure.DataMongoRepositoriesAutoConfiguration}
-
 spring:
   cache:
     type: redis
@@ -33,9 +30,9 @@ spring:
       port: ${SPRING_DATA_REDIS_PORT:6379}
       password: ${SPRING_DATA_REDIS_PASSWORD:redispass}
 
-
   mongodb:
     uri: ${SPRING_DATA_MONGODB_URI:mongodb://root:rootpass@localhost:27017/ubermongo?authSource=admin}
+
 
   rabbitmq:
     host: rabbitmq
@@ -50,9 +47,34 @@ spring:
           enabled: true
           initial-interval: 1000
           max-attempts: 3
+#  rabbitmq:
+#    host: ${SPRING_RABBITMQ_HOST:localhost}
+#    port: 5672
+#    username: guest
+#    password: guest
+#    listener:
+#      simple:
+#        acknowledge-mode: auto
+#        default-requeue-rejected: false
+#        retry:
+#          enabled: true
+#          initial-interval: 1000
+#          max-attempts: 3
 
 server:
   port: 8080
+
+#feign:
+#  user-service:
+#    url: ${FEIGN_USER_SERVICE_URL:http://localhost:8081}
+#  driver-service:
+#    url: ${FEIGN_DRIVER_SERVICE_URL:http://localhost:8082}
+#  ride-service:
+#    url: http://ride-service:8080
+#  payment-service:
+#    url: http://payment-service:8080
+#  location-service:
+#    url: http://location-service:8080
 
 feign:
   user-service:
@@ -61,6 +83,20 @@ feign:
     url: http://driver-service:8080
   ride-service:
     url: http://ride-service:8080
+  location-service:
+    url: http://location-service:8080
+  payment-service:
+    url: http://payment-service:8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 
 

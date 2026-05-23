@@ -1,0 +1,17 @@
+# Headless service — required for StatefulSet DNS resolution
+apiVersion: v1
+kind: Service
+metadata:
+  name: ride-postgres
+  namespace: uber
+spec:
+  clusterIP: None   # headless
+  selector:
+    app: ride-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+#     vvv IF ANY ISSUE TRY REMOVING THIS vvv
+      protocol: TCP
+
+

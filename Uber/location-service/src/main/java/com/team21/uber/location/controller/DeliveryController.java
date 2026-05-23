@@ -59,6 +59,12 @@ public class DeliveryController {
         return ResponseEntity.ok(deliveryService.getLatestDelivery(driverId));
     }
 
+    // 404 if no location or most recent older than 5 minutes
+    @GetMapping("/driver/{driverId}/recent")
+    public ResponseEntity<DeliveryResponse> getRecentDelivery(@PathVariable Long driverId) {
+        return ResponseEntity.ok(deliveryService.getRecentDelivery(driverId));
+    }
+
     @GetMapping("/nearby")
     public ResponseEntity<List<NearbyDriverDTO>> getNearbyDeliveries(@RequestParam double lat,
                                                                        @RequestParam double lon,

@@ -1,0 +1,86 @@
+#  What you MUST do before deploying
+#    1. Replace image placeholders
+#  In every Deployment file, replace <your-registry>/service-name:latest with your actual image. For Minikube you have two options:
+#
+#  Option A (easiest): eval $(minikube docker-env) then docker build — images are available locally, set imagePullPolicy: Never
+#  Option B: Push to Docker Hub as yourname/user-service:latest
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: uber
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          # Replace <your-registry> with your actual image registry
+          # e.g. docker.io/yourname/user-service:latest
+          image: user-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            # Load all non-sensitive config (URLs, hostnames, ports)
+            - configMapRef:
+                name: user-service-configmap
+            # Load POSTGRES_USER and POSTGRES_PASSWORD — Spring reads these as
+            # SPRING_DATASOURCE_USERNAME / SPRING_DATASOURCE_PASSWORD via Spring's
+            # relaxed binding (POSTGRES_USER -> spring.datasource.username won't work —
+            # the configmap sets SPRING_DATASOURCE_USERNAME explicitly)
+            - secretRef:
+                name: user-postgres-secret
+          env:
+            # JWT_SECRET loaded individually from shared secret
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: jwt-secret
+            # Explicit datasource credentials mapping
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: user-postgres-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: user-postgres-secret
+                  key: POSTGRES_PASSWORD
+            # Redis password
+            - name: SPRING_DATA_REDIS_PASSWORD
+              value: redispass
+            # RabbitMQ password
+            - name: SPRING_RABBITMQ_PASSWORD
+              value: guest
+          resources:
+            limits:
+              memory: 768Mi
+            requests:
+              memory: 384Mi
+          # readinessProbe: pod only receives traffic once Spring Boot is fully up
+          # initialDelaySeconds: 30 gives Spring time to start before first check
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          # livenessProbe: if this fails, K8s restarts the pod
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5

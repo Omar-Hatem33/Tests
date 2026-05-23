@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j
+  namespace: uber
+spec:
+  serviceName: neo4j
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+    spec:
+      containers:
+        - name: neo4j
+          image: neo4j:5.19-community
+          ports:
+            - containerPort: 7474   # HTTP browser UI
+              name: http
+            - containerPort: 7687   # Bolt protocol (what Spring uses)
+              name: bolt
+          env:
+            - name: NEO4J_AUTH
+              value: neo4j/neo4jpass
+            - name: NEO4J_PLUGINS
+              value: '["apoc"]'
+            - name: NEO4J_dbms_memory_heap_initial__size
+              value: 256m
+            - name: NEO4J_dbms_memory_heap_max__size
+              value: 512m
+            - name: NEO4J_dbms_memory_pagecache_size
+              value: 256m
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 7474
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 7474
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: 500m
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 5Gi
+
+# TRY THIS IF THERE WAS ANY ISSUE
+#
+#apiVersion: apps/v1
+#kind: StatefulSet
+#metadata:
+#  name: neo4j
+#  namespace: uber
+#spec:
+#  serviceName: neo4j
+#  replicas: 1
+#  selector:
+#    matchLabels:
+#      app: neo4j
+#  template:
+#    metadata:
+#      labels:
+#        app: neo4j
+#    spec:
+#      containers:
+#        - name: neo4j
+#          image: neo4j:5
+#          ports:
+#            - containerPort: 7474  # HTTP browser UI
+#            - containerPort: 7687  # Bolt protocol — used by Spring Data Neo4j
+#          env:
+#            # NEO4J_AUTH format: "username/password"
+#            - name: NEO4J_AUTH
+#              value: neo4j/neo4jpass
+#            - name: NEO4J_server_memory_heap_max__size
+#              value: 512m
+#            - name: NEO4J_server_memory_heap_initial__size
+#              value: 256m
+#          resources:
+#            limits:
+#              memory: 768Mi
+#            requests:
+#              memory: 384Mi
+#          # tcpSocket on Bolt port: minimal but sufficient — verifies Neo4j is
+#          # accepting connections before Spring Data Neo4j tries to connect
+#          readinessProbe:
+#            tcpSocket:
+#              port: 7687
+#            initialDelaySeconds: 30
+#            periodSeconds: 10
+#            failureThreshold: 6
+#          livenessProbe:
+#            tcpSocket:
+#              port: 7687
+#            initialDelaySeconds: 60
+#            periodSeconds: 10
+#            failureThreshold: 6
+#          volumeMounts:
+#            - name: data
+#              mountPath: /data
+#  volumeClaimTemplates:
+#    - metadata:
+#        name: data
+#      spec:
+#        accessModes: ["ReadWriteOnce"]
+#        resources:
+#          requests:
+#            storage: 1Gi

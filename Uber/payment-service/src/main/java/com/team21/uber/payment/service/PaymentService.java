@@ -3,7 +3,7 @@ package com.team21.uber.payment.service;
 import com.team21.uber.contracts.dto.RideDTO;
 import com.team21.uber.contracts.events.PaymentCompletedEvent;
 import com.team21.uber.contracts.events.PaymentFailedEvent;
-import com.team21.uber.contracts.feign.RideServiceClient;
+import com.team21.uber.payment.feign.RideServiceClient;
 import com.team21.uber.payment.dto.*;
 import com.team21.uber.payment.cache.CacheInvalidator;
 import com.team21.uber.payment.feign.UserServiceClient;
@@ -174,6 +174,13 @@ public class PaymentService {
             userServiceClient.getUser(userId);
         } catch (FeignException.NotFound e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        } catch (FeignException e) {
+            boolean hasPayments = !paymentRepository
+                    .getCompletedPaymentsByMethod(userId).isEmpty();
+            if (!hasPayments) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+            }
+            log.warn("user-service call failed for userId={}, proceeding: {}", userId, e.getMessage());
         }
 
         // ── Build breakdown from local payments table ────────────────────────────
@@ -547,11 +554,11 @@ public class PaymentService {
 
 //    M3
 
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public PaymentDetailsDTO processPaymentForRide(Long rideId, PaymentRequestDTO request) {
 
         // 1. Feign → ride-service (replaces findRideStatusById + findRideDetailsById)
-        RideDTO ride;
+        RideServiceClient.RideResponse ride;
         try {
             log.info("Calling RideServiceClient.getRide with args={}", rideId);
             ride = rideServiceClient.getRide(rideId);
@@ -573,7 +580,7 @@ public class PaymentService {
 
         // 3. Find local PENDING payment (created by ride.completed consumer)
         Payment payment = paymentRepository
-                .findByRideIdAndStatus(rideId, PaymentStatus.PENDING)
+                .findByRideIdAndStatus(rideId, PaymentStatus.PENDING).stream().findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "No pending payment for this ride"));
 
@@ -606,7 +613,7 @@ public class PaymentService {
         }
 
         // 5. Compute surge fee from ride fare (no cross-service call needed)
-        double amount = ride.fare() != null ? ride.fare() : payment.getAmount();
+        double amount = ride.amount() != null ? ride.amount() : payment.getAmount();
         double surgeFee = amount * 0.15; // default — metadata-based calc removed (cross-service SQL gone)
 
         // 6. Mark COMPLETED
@@ -705,5 +712,22 @@ public class PaymentService {
         Double total = paymentRepository.sumAmountByUserAndStatusAndDateRange(
                 userId, PaymentStatus.COMPLETED, start, end);
         return total == null ? BigDecimal.ZERO : BigDecimal.valueOf(total);
+    }
+
+    // Batch totals: single SQL groupBy userId for many users at once
+    public java.util.Map<Long, BigDecimal> getUserPaymentTotals(
+            java.util.List<Long> userIds, LocalDateTime start, LocalDateTime end) {
+        java.util.Map<Long, BigDecimal> result = new java.util.HashMap<>();
+        if (userIds == null || userIds.isEmpty()) return result;
+        for (Long uid : userIds) result.put(uid, BigDecimal.ZERO);
+        List<Object[]> rows = paymentRepository.sumAmountByUsersAndStatusAndDateRange(
+                userIds, PaymentStatus.COMPLETED, start, end);
+        for (Object[] row : rows) {
+            Long uid = ((Number) row[0]).longValue();
+            BigDecimal sum = row[1] == null ? BigDecimal.ZERO
+                    : new BigDecimal(row[1].toString());
+            result.put(uid, sum);
+        }
+        return result;
     }
 }

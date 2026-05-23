@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Console appender for local dev -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{ISO8601} [%thread] %-5level %logger{36} correlationId=%X{correlationId:-} rideId=%X{rideId:-} userId=%X{userId:-} driverId=%X{driverId:-} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Loki4J appender — pushes structured JSON logs to Loki -->
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push</url>
+            <!-- Soft-fail: if Loki is unreachable, log to console only -->
+            <connectionTimeoutMs>5000</connectionTimeoutMs>
+            <requestTimeoutMs>5000</requestTimeoutMs>
+        </http>
+        <format>
+            <label>
+                <pattern>app=uber,service=ride-service,level=%level,env=k8s</pattern>
+            </label>
+            <message>
+                <pattern>{
+                    "timestamp": "%d{ISO8601}",
+                    "level": "%level",
+                    "service": "ride-service",
+                    "thread": "%thread",
+                    "logger": "%logger{36}",
+                    "correlationId": "%X{correlationId:-}",
+                    "userId": "%X{userId:-}",
+                    "driverId": "%X{driverId:-}",
+                    "rideId": "%X{rideId:-}",
+                    "paymentId": "%X{paymentId:-}",
+                    "routingKey": "%X{routingKey:-}",
+                    "message": "%msg"
+                    }</pattern>
+            </message>
+            <sortByTime>true</sortByTime>
+        </format>
+    </appender>
+
+    <!-- Async wrapper around Loki to avoid blocking request threads -->
+    <appender name="LOKI_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="LOKI"/>
+        <discardingThreshold>0</discardingThreshold>
+        <queueSize>512</queueSize>
+        <neverBlock>true</neverBlock>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="LOKI_ASYNC"/>
+    </root>
+
+    <!-- Reduce noise from framework internals -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.springframework.security" level="WARN"/>
+    <logger name="org.springframework.web" level="INFO"/>
+
+</configuration>

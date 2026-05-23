@@ -1,4 +1,11 @@
 apiVersion: v1
-kind: Namespace
+kind: Service
 metadata:
-  name: uber
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090

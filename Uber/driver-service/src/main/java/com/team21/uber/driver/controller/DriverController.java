@@ -23,6 +23,16 @@ public class DriverController {
         this.driverService = driverService;
     }
 
+    private void enforceOwnerOrAdmin(Long driverId, Long callerId, String callerRole) {
+        if ("ADMIN".equalsIgnoreCase(callerRole)) {
+            return;
+        }
+        if (callerId == null || !callerId.equals(driverId)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Caller is not driver owner or admin");
+        }
+    }
+
     @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("OK");
@@ -112,8 +122,10 @@ public class DriverController {
     }
     // ── S2-F12: Driver Performance Dashboard ─────────────────────
     @GetMapping("/{id}/dashboard")
-    public ResponseEntity<DriverDashboardDTO> getDriverDashboard(@PathVariable Long id) {
-            // ALWAYS log (even cache hits)
+    public ResponseEntity<DriverDashboardDTO> getDriverDashboard(@PathVariable Long id,
+                                                                 @RequestHeader(value = "X-User-Id", required = false) Long callerId,
+                                                                 @RequestHeader(value = "X-User-Role", required = false) String callerRole) {
+        enforceOwnerOrAdmin(id, callerId, callerRole);
             driverService.publish("DASHBOARD_VIEWED", id, Map.of());
         return ResponseEntity.ok(driverService.getDriverDashboard(id));
     }
@@ -140,7 +152,10 @@ public class DriverController {
     public DriverEarningsDTO getDriverEarnings(
             @PathVariable Long id,
             @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam String endDate,
+            @RequestHeader(value = "X-User-Id", required = false) Long callerId,
+            @RequestHeader(value = "X-User-Role", required = false) String callerRole) {
+        enforceOwnerOrAdmin(id, callerId, callerRole);
         return driverService.getDriverEarnings(
                 id,
                 LocalDate.parse(startDate).atStartOfDay(),
@@ -151,7 +166,10 @@ public class DriverController {
 
     @PutMapping("/{id}/availability")
     public ResponseEntity<?> updateAvailability(@PathVariable Long id,
-                                                @RequestBody AvailabilityUpdateRequest request) {
+                                                @RequestBody AvailabilityUpdateRequest request,
+                                                @RequestHeader(value = "X-User-Id", required = false) Long callerId,
+                                                @RequestHeader(value = "X-User-Role", required = false) String callerRole) {
+        enforceOwnerOrAdmin(id, callerId, callerRole);
         Optional<Driver> optionalDriver = driverService.getDriverById(id);
         if (optionalDriver.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Driver not found");
@@ -206,22 +224,12 @@ public class DriverController {
     // ── S2-F8: Verify Driver Document ────────────────────────────
 
     @PutMapping("/{driverId}/documents/{documentId}/verify")
-    public Driver verifyDocument(
+    public ResponseEntity<Void> verifyDocument(
             @PathVariable Long driverId,
             @PathVariable Long documentId,
-            @RequestBody(required = false) Map<String, Object> body) {
-        var auth = org.springframework.security.core.context.SecurityContextHolder
-                .getContext().getAuthentication();
-        Long verifiedBy = null;
-        if (body != null && body.get("verifiedBy") != null) {
-            try { verifiedBy = Long.valueOf(body.get("verifiedBy").toString()); }
-            catch (NumberFormatException ignored) {}
-        }
-        if (verifiedBy == null && auth != null && auth.getPrincipal() instanceof Long uid) {
-            verifiedBy = uid;
-        }
-        if (verifiedBy == null) verifiedBy = 0L;
-        return driverService.verifyDriverDocument(driverId, documentId, verifiedBy);
+            @RequestHeader("X-User-Id") Long callerId) {
+        driverService.verifyDriverDocument(driverId, documentId, callerId);
+        return ResponseEntity.ok().build();
     }
 
     // ── S2-F9: Drivers with Expired Documents ────────────────────

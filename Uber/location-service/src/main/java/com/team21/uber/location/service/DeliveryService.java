@@ -99,6 +99,17 @@ public class DeliveryService {
         return DeliveryResponse.fromEntity(delivery);
     }
 
+    public DeliveryResponse getRecentDelivery(Long driverId) {
+        validateDriverId(driverId);
+        ensureDriverExists(driverId);
+        Location delivery = deliveryRepository.findTopByDriverIdOrderByTimestampDesc(driverId)
+                .orElseThrow(() -> new ResourceNotFoundException("No locations found for driver id: " + driverId));
+        if (delivery.getTimestamp() == null || delivery.getTimestamp().isBefore(LocalDateTime.now().minusMinutes(5))) {
+            throw new ResourceNotFoundException("No recent location (within 5 minutes) for driver id: " + driverId);
+        }
+        return DeliveryResponse.fromEntity(delivery);
+    }
+
     public List<NearbyDriverDTO> findNearbyDeliveries(double latitude, double longitude, double radiusKm) {
         validateCoordinates(latitude, longitude);
         if (radiusKm < 0) {

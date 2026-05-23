@@ -1,0 +1,57 @@
+
+### ─────────────────────────────────────────────────────────────
+### S5-F10 — Fare Revenue by Vehicle Type
+### ─────────────────────────────────────────────────────────────
+
+### [F10-1] HAPPY PATH
+### Expected: SEDAN and SUV grouped with correct revenue breakdown
+GET http://localhost:8085/api/payments/analytics/vehicle-type?startDate=2026-03-01&endDate=2026-03-31
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+> {%
+    client.log("F10-1 response: " + JSON.stringify(response.body));
+    client.test("Status is 200", function() {
+        client.assert(response.status === 200,
+            "Expected 200, got " + response.status);
+    });
+    client.test("Response is an array", function() {
+        client.assert(Array.isArray(response.body),
+            "Expected array");
+    });
+    client.test("Contains vehicle type entries", function() {
+        client.assert(response.body.length > 0,
+            "Expected at least one vehicle type entry");
+    });
+    client.test("Each entry has required fields", function() {
+        response.body.forEach(function(entry) {
+            client.assert(entry.vehicleType !== undefined, "Missing vehicleType");
+            client.assert(entry.totalRevenue !== undefined, "Missing totalRevenue");
+            client.assert(entry.baseFareRevenue !== undefined, "Missing baseFareRevenue");
+            client.assert(entry.surgeFeeRevenue !== undefined, "Missing surgeFeeRevenue");
+            client.assert(entry.rideCount !== undefined, "Missing rideCount");
+        });
+    });
+%}
+
+###
+
+### [F10-2] GRACEFUL SKIP — bad rideId in payments (ride-service returns 404)
+### Expected: 200, entry skipped gracefully, no crash
+GET http://localhost:8085/api/payments/analytics/vehicle-type?startDate=2020-01-01&endDate=2030-12-31
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+> {%
+    client.log("F10-2 response: " + JSON.stringify(response.body));
+    client.test("Status is 200", function() {
+        client.assert(response.status === 200,
+            "Expected 200, got " + response.status);
+    });
+    client.test("Response is array (no crash)", function() {
+        client.assert(Array.isArray(response.body),
+            "Expected array even with bad rideIds");
+    });
+%}

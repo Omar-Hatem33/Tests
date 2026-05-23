@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: driver-postgres
+  namespace: uber
+spec:
+  clusterIP: None
+  selector:
+    app: driver-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

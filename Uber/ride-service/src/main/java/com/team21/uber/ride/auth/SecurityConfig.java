@@ -64,7 +64,12 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/api/auth/**", "/actuator/**", "/**/health", "/error").permitAll()
+                        .requestMatchers("/api/auth/**", "/actuator/**", "/**/health", "/error","/api/rides/user/*/summary",
+                                "/api/rides/user/*/active-count",
+                                "/api/rides/user/*/completed-count",
+                                "/api/rides/driver/*/summary",
+                                "/api/rides/driver/*/active-count",
+                                "/api/rides/driver/*/completed-count").permitAll()
                         .anyRequest().authenticated()
                 )
                 /**

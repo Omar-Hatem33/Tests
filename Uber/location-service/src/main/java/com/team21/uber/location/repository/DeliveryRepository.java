@@ -13,15 +13,15 @@ import java.util.Optional;
 
 public interface DeliveryRepository extends JpaRepository<Location, Long>, DeliveryQueryRepository {
 
-    Optional<Location> findTopByDriver_IdOrderByTimestampDesc(Long driverId);
+    Optional<Location> findTopByDriverIdOrderByTimestampDesc(Long driverId);
 
     List<Location> findAllByOrderByTimestampDesc();
 
-    List<Location> findByDriver_IdAndTimestampBetweenOrderByTimestampAsc(Long driverId, LocalDateTime start, LocalDateTime end);
+    List<Location> findByDriverIdAndTimestampBetweenOrderByTimestampAsc(Long driverId, LocalDateTime start, LocalDateTime end);
 
     List<Location> findByTimestampBetweenOrderByTimestampAsc(LocalDateTime start, LocalDateTime end);
 
-    List<Location> findByDriver_IdOrderByTimestampAsc(Long driverId);
+    List<Location> findByDriverIdOrderByTimestampAsc(Long driverId);
 
     long countByTimestampBefore(LocalDateTime cutoff);
 
@@ -29,16 +29,4 @@ public interface DeliveryRepository extends JpaRepository<Location, Long>, Deliv
     @Transactional
     @Query(value = "DELETE FROM locations WHERE timestamp < :cutoff", nativeQuery = true)
     int deleteExpiredLocations(@Param("cutoff") LocalDateTime cutoff);
-
-    default Optional<Location> findTopByDriverIdOrderByTimestampDesc(Long driverId) {
-        return findTopByDriver_IdOrderByTimestampDesc(driverId);
-    }
-
-    default List<Location> findByDriverIdAndTimestampBetweenOrderByTimestampAsc(Long driverId, LocalDateTime start, LocalDateTime end) {
-        return findByDriver_IdAndTimestampBetweenOrderByTimestampAsc(driverId, start, end);
-    }
-
-    default List<Location> findByDriverIdOrderByTimestampAsc(Long driverId) {
-        return findByDriver_IdOrderByTimestampAsc(driverId);
-    }
 }

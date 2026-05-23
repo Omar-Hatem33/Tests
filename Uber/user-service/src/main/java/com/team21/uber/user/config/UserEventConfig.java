@@ -2,11 +2,17 @@ package com.team21.uber.user.config;
 
 
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class UserEventConfig {
+
+    @Bean
+    public Jackson2JsonMessageConverter rabbitMessageConverter() {
+        return new Jackson2JsonMessageConverter();
+    }
 
     //Producer
     @Bean

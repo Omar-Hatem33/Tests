@@ -1,0 +1,142 @@
+#  What you MUST do before deploying
+#    1. Replace image placeholders
+#  In every Deployment file, replace <your-registry>/service-name:latest with your actual image. For Minikube you have two options:
+#
+#  Option A (easiest): eval $(minikube docker-env) then docker build — images are available locally, set imagePullPolicy: Never
+#  Option B: Push to Docker Hub as yourname/user-service:latest
+
+#apiVersion: apps/v1
+#kind: Deployment
+#metadata:
+#  name: ride-service
+#  namespace: uber
+#spec:
+#  replicas: 1
+#  selector:
+#    matchLabels:
+#      app: ride-service
+#  template:
+#    metadata:
+#      labels:
+#        app: ride-service
+#    spec:
+#      containers:
+#        - name: ride-service
+#          image: team21/ride-service:latest
+#          ports:
+#            - containerPort: 8080
+#          envFrom:
+#            - configMapRef:
+#                name: ride-service-config
+#          env:
+#            - name: JWT_SECRET
+#              valueFrom:
+#                secretKeyRef:
+#                  name: jwt-secret
+#                  key: JWT_SECRET
+#            - name: SPRING_DATASOURCE_USERNAME
+#              valueFrom:
+#                secretKeyRef:
+#                  name: ride-postgres-secret
+#                  key: POSTGRES_USER
+#            - name: SPRING_DATASOURCE_PASSWORD
+#              valueFrom:
+#                secretKeyRef:
+#                  name: ride-postgres-secret
+#                  key: POSTGRES_PASSWORD
+#            - name: SPRING_NEO4J_AUTHENTICATION_PASSWORD
+#              value: neo4jpass
+#            - name: SPRING_DATA_REDIS_PASSWORD
+#              value: redispass
+#          readinessProbe:
+#            httpGet:
+#              path: /actuator/health
+#              port: 8080
+#            initialDelaySeconds: 30
+#            periodSeconds: 10
+#            failureThreshold: 5
+#          livenessProbe:
+#            httpGet:
+#              path: /actuator/health
+#              port: 8080
+#            initialDelaySeconds: 60
+#            periodSeconds: 30
+#          resources:
+#            requests:
+#              memory: 512Mi
+#              cpu: 200m
+#            limits:
+#              memory: 1Gi
+#              cpu: 500m
+
+# used mine this was OG but was missing -- resources.limits.memory: 768Mi
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ride-service
+  namespace: uber
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ride-service
+  template:
+    metadata:
+      labels:
+        app: ride-service
+    spec:
+      containers:
+        - name: ride-service
+          image: ride-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: ride-service-configmap
+            - secretRef:
+                name: ride-postgres-secret
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: jwt-secret
+            # ride-postgres uses "user" / "postgrespass" — must map correctly
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ride-postgres-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ride-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: SPRING_DATA_REDIS_PASSWORD
+              value: redispass
+            - name: SPRING_RABBITMQ_PASSWORD
+              value: guest
+            # Neo4j auth — ride-service reads SPRING_NEO4J_AUTHENTICATION_PASSWORD
+            - name: SPRING_NEO4J_AUTHENTICATION_PASSWORD
+              value: neo4jpass
+          resources:
+            limits:
+              memory: 768Mi
+            requests:
+              memory: 384Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5

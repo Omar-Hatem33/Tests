@@ -48,6 +48,7 @@ spring:
     connection:
       connect-timeout: 30s
       init-query-timeout: 30s
+
 feign:
   user-service:
     url: http://user-service:8080
@@ -59,5 +60,16 @@ feign:
     url: http://location-service:8080
   payment-service:
     url: http://payment-service:8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
 server:
   port: 8080

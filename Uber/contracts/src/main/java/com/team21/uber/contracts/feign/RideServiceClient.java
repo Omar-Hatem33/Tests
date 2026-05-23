@@ -20,18 +20,23 @@ public interface RideServiceClient {
     @GetMapping("/api/rides/user/{userId}/completed-count")
     long getUserCompletedRideCount(@PathVariable("userId") Long userId);
 
+    // used for S2-F3
     @GetMapping("/api/rides/driver/{driverId}/summary")
     DriverRideSummaryDTO getDriverRideSummary(
             @PathVariable("driverId") Long driverId,
-            @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate
+            @RequestParam(value = "startDate", required = false) String startDate,
+            @RequestParam(value = "endDate", required = false) String endDate
     );
 
     @GetMapping("/api/rides/driver/{driverId}/active-count")
-    int getDriverActiveRideCount(@PathVariable("driverId") Long driverId);
+    int getDriverActiveRideCount(
+            @PathVariable("driverId") Long driverId
+    );
 
     @GetMapping("/api/rides/driver/{driverId}/completed-count")
-    long getDriverCompletedRideCount(@PathVariable("driverId") Long driverId);
+    long getDriverCompletedRideCount(
+            @PathVariable("driverId") Long driverId
+    );
 
     @GetMapping("/api/rides/{rideId}")
     RideDTO getRide(@PathVariable("rideId") Long rideId);

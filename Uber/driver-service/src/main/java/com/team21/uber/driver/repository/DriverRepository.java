@@ -3,6 +3,7 @@ package com.team21.uber.driver.repository;
 import com.team21.uber.driver.model.Driver;
 import com.team21.uber.driver.model.DriverStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -66,6 +67,17 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
         WHERE r.driver_id = :driverId AND r.status = 'COMPLETED'
         """, nativeQuery = true)
     List<Object[]> getDriverRideStats(@Param("driverId") Long driverId);
+
+    // Atomic rating update to avoid lost-write race
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        UPDATE drivers
+           SET rating = ((COALESCE(rating, 0) * COALESCE(total_ratings, 0)) + :newRating)
+                        / (COALESCE(total_ratings, 0) + 1),
+               total_ratings = COALESCE(total_ratings, 0) + 1
+         WHERE id = :driverId
+    """, nativeQuery = true)
+    int applyRating(@Param("driverId") Long driverId, @Param("newRating") double newRating);
 
     // S2-F5: Filter by vehicle type (JSONB)
     @Query(value = """

@@ -60,7 +60,16 @@ feign:
   payment-service:
     url: http://payment-service:8080
 
-
+# Actuator — expose prometheus + health
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 jwt:
   secret: ${JWT_SECRET:dev-only-secret-change-me-32-chars-minimum-1234567890ABCDEF}

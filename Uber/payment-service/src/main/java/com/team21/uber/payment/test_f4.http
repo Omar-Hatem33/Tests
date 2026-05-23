@@ -1,0 +1,123 @@
+
+### ─────────────────────────────────────────────────────────────
+### S5-F4 — Process Payment for Ride
+### ─────────────────────────────────────────────────────────────
+
+### [F4-SETUP] Insert a PENDING payment for rideId=1
+POST http://localhost:8085/api/payments
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-User-Id: 1
+X-User-Role: ADMIN
+
+{
+  "rideId": 1,
+  "userId": 2,
+  "amount": 200.0,
+  "status": "PENDING",
+  "method": "CREDIT_CARD"
+}
+
+> {%
+    client.global.set("pendingPaymentId", response.body.id);
+    client.log("Pending payment id: " + response.body.id);
+%}
+
+###
+
+### [F4-1] HAPPY PATH — ride is PAYMENT_PENDING, PENDING payment exists
+### Expected: 200/201, status=COMPLETED, payment.completed published
+POST http://localhost:8085/api/payments/ride/3
+Content-Type: application/json
+Authorization: Bearer {{riderToken}}
+X-User-Id: 2
+X-User-Role: RIDER
+
+{
+  "method": "CREDIT_CARD",
+  "cardLastFour": "4242"
+}
+
+> {%
+    client.log("F4-1 response: " + JSON.stringify(response.body));
+    client.test("Status is 200 or 201", function() {
+        client.assert(response.status === 200 || response.status === 201,
+            "Expected 200/201, got " + response.status);
+    });
+    client.test("Payment status is COMPLETED", function() {
+        client.assert(response.body.status === "COMPLETED",
+            "Expected COMPLETED, got " + response.body.status);
+    });
+    client.test("Method is CREDIT_CARD", function() {
+        client.assert(response.body.method === "CREDIT_CARD",
+            "Expected CREDIT_CARD, got " + response.body.method);
+    });
+%}
+
+###
+
+### [F4-2] WRONG STATUS — ride not in PAYMENT_PENDING
+### Expected: 400
+POST http://localhost:8085/api/payments/ride/2
+Content-Type: application/json
+Authorization: Bearer {{riderToken}}
+X-User-Id: 2
+X-User-Role: RIDER
+
+{
+  "method": "CREDIT_CARD",
+  "cardLastFour": "4242"
+}
+
+> {%
+    client.log("F4-2 response: " + JSON.stringify(response.body));
+    client.test("Status is 400", function() {
+        client.assert(response.status === 400,
+            "Expected 400, got " + response.status);
+    });
+%}
+
+###
+
+### [F4-3] UNSUPPORTED METHOD — payment.failed should be published
+### Expected: 400
+POST http://localhost:8085/api/payments/ride/3
+Content-Type: application/json
+Authorization: Bearer {{riderToken}}
+X-User-Id: 2
+X-User-Role: RIDER
+
+{
+  "method": "BITCOIN"
+}
+
+> {%
+    client.log("F4-3 response: " + JSON.stringify(response.body));
+    client.test("Status is 400", function() {
+        client.assert(response.status === 400,
+            "Expected 400, got " + response.status);
+    });
+%}
+
+###
+
+### [F4-4] RIDE NOT FOUND — Feign returns 404
+### Expected: 404
+POST http://localhost:8085/api/payments/ride/999
+Content-Type: application/json
+Authorization: Bearer {{riderToken}}
+X-User-Id: 2
+X-User-Role: RIDER
+
+{
+  "method": "CREDIT_CARD",
+  "cardLastFour": "4242"
+}
+
+> {%
+    client.log("F4-4 response: " + JSON.stringify(response.body));
+    client.test("Status is 404", function() {
+        client.assert(response.status === 404,
+            "Expected 404, got " + response.status);
+    });
+%}

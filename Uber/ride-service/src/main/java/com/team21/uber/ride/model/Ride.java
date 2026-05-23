@@ -21,7 +21,7 @@ public class Ride {
     @Column(nullable = false)
     private Long userId;
 
-    @Column(name = "driver_id", columnDefinition = "BIGINT REFERENCES drivers(id) ON DELETE SET NULL")
+    @Column(name = "driver_id")
     private Long driverId;
 
     @Column(nullable = false)
