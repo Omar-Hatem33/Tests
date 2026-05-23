@@ -93,7 +93,11 @@ public class UserController {
     public ResponseEntity<List<TopRiderDTO>> getTopRiders(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam int limit) {
+            @RequestParam int limit,
+            @RequestHeader(value = "X-User-Role", required = false) String callerRole) {
+        if (callerRole == null || !"ADMIN".equalsIgnoreCase(callerRole)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin role required");
+        }
         try {
             return ResponseEntity.ok(userService.getTopRiders(
                     startDate.atStartOfDay(),

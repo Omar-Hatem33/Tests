@@ -2,11 +2,13 @@ package com.team21.uber.payment.controller;
 
 import com.team21.uber.payment.dto.*;
 import com.team21.uber.payment.dto.PaymentDetailsDTO;
+import com.team21.uber.payment.messaging.publishers.PaymentEventPublisher;
 import com.team21.uber.payment.service.CouponService;
 import com.team21.uber.payment.dto.PaymentRequestDTO;
 import com.team21.uber.payment.dto.RevenueReportDTO;
 import com.team21.uber.payment.dto.PaymentDetailsDTO;
 import com.team21.uber.payment.dto.UserPaymentSummaryDTO;
+import com.team21.uber.payment.service.PaymentAnalyticsService;
 import com.team21.uber.payment.service.PaymentMethodBreakdownService;
 import com.team21.uber.payment.service.PaymentService;
 import com.team21.uber.payment.model.Payment;
@@ -30,11 +32,14 @@ public class PaymentController {
     private final PaymentService paymentService;
     private final CouponService couponService;
     private final PaymentMethodBreakdownService paymentMethodBreakdownService;
+    private final PaymentAnalyticsService paymentAnalyticsService;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PaymentEventPublisher.class);
 
-    public PaymentController(PaymentService paymentService, CouponService couponService, PaymentMethodBreakdownService paymentMethodBreakdownService) {
+    public PaymentController(PaymentService paymentService, CouponService couponService, PaymentMethodBreakdownService paymentMethodBreakdownService, PaymentAnalyticsService paymentAnalyticsService) {
         this.paymentService = paymentService;
         this.couponService = couponService;
         this.paymentMethodBreakdownService = paymentMethodBreakdownService;
+        this.paymentAnalyticsService = paymentAnalyticsService;
     }
 
     @PostMapping
@@ -95,7 +100,19 @@ public class PaymentController {
     }
 
     @GetMapping("/user/{userId}/summary")
-    public ResponseEntity<UserPaymentSummaryDTO> userSummary(@PathVariable Long userId){
+    public ResponseEntity<UserPaymentSummaryDTO> userSummary(
+            @PathVariable Long userId,
+            @RequestHeader(value = "X-User-Id", required = false) Long requestingUserId,
+            @RequestHeader(value = "X-User-Role", required = false) String requestingUserRole) {
+
+        boolean isAdmin = "ADMIN".equals(requestingUserRole);
+        boolean isOwner = userId.equals(requestingUserId);
+
+        if (!isAdmin && !isOwner) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Access denied: riders can only view their own payment summary");
+        }
+
         return ResponseEntity.ok(paymentService.getUserPaymentSummary(userId));
     }
   
@@ -176,10 +193,51 @@ public class PaymentController {
     public ResponseEntity<BigDecimal> getUserPaymentTotal(
             @PathVariable Long userId,
             @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam String endDate,
+            @RequestHeader(value = "X-User-Id", required = false) Long requestingUserId,
+            @RequestHeader(value = "X-User-Role", required = false) String requestingUserRole) {
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(requestingUserRole);
+        boolean isOwner = userId.equals(requestingUserId);
+        if (!isAdmin && !isOwner) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Access denied: riders can only view their own payment total");
+        }
         LocalDateTime start = parseDateTime(startDate, LocalTime.MIN);
         LocalDateTime end   = parseDateTime(endDate,   LocalTime.MAX);
         return ResponseEntity.ok(paymentService.getUserPaymentTotal(userId, start, end));
     }
+
+    // Batch totals: POST /api/payments/users/totals
+    @PostMapping("/users/totals")
+    public ResponseEntity<Map<Long, BigDecimal>> getUsersPaymentTotals(
+            @RequestBody Map<String, Object> body,
+            @RequestHeader(value = "X-User-Role", required = false) String requestingUserRole) {
+        if (!"ADMIN".equalsIgnoreCase(requestingUserRole)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin role required");
+        }
+        Object idsObj = body.get("userIds");
+        if (!(idsObj instanceof List<?> idsList)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "userIds list required");
+        }
+        List<Long> userIds = new java.util.ArrayList<>();
+        for (Object o : idsList) {
+            if (o instanceof Number n) userIds.add(n.longValue());
+            else if (o != null) userIds.add(Long.valueOf(o.toString()));
+        }
+        LocalDateTime start = parseDateTime(String.valueOf(body.get("startDate")), LocalTime.MIN);
+        LocalDateTime end   = parseDateTime(String.valueOf(body.get("endDate")),   LocalTime.MAX);
+        return ResponseEntity.ok(paymentService.getUserPaymentTotals(userIds, start, end));
+    }
+
+//    @GetMapping("/analytics/vehicle-type")
+//    public ResponseEntity<List<VehicleTypeRevenueDTO>> getRevenueByVehicleType(
+//            @RequestParam String startDate,
+//            @RequestParam String endDate) {
+//        log.info("Received GET /api/payments/analytics/vehicle-type");
+//        List<VehicleTypeRevenueDTO> result =
+//                paymentAnalyticsService.getRevenueByVehicleType(startDate, endDate);
+//        log.info("Returning 200 for GET /api/payments/analytics/vehicle-type");
+//        return ResponseEntity.ok(result);
+//    }
 
 }

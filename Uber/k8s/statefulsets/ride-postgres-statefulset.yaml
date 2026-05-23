@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ride-postgres
+  namespace: uber
+spec:
+  serviceName: ride-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ride-postgres
+  template:
+    metadata:
+      labels:
+        app: ride-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ride-postgres-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ride-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: ride-postgres-secret
+                  key: POSTGRES_DB
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, postgres]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, postgres]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            limits:
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+
+
+#            TRY THIS IF  THERE WAS ISSUE
+
+#apiVersion: apps/v1
+#kind: StatefulSet
+#metadata:
+#  name: ride-postgres
+#  namespace: uber
+#spec:
+#  serviceName: ride-postgres
+#  replicas: 1
+#  selector:
+#    matchLabels:
+#      app: ride-postgres
+#  template:
+#    metadata:
+#      labels:
+#        app: ride-postgres
+#    spec:
+#      containers:
+#        - name: postgres
+#          image: postgres:17
+#          ports:
+#            - containerPort: 5432
+#          env:
+#            - name: POSTGRES_USER
+#              valueFrom:
+#                secretKeyRef:
+#                  name: ride-postgres-secret
+#                  key: POSTGRES_USER
+#            - name: POSTGRES_PASSWORD
+#              valueFrom:
+#                secretKeyRef:
+#                  name: ride-postgres-secret
+#                  key: POSTGRES_PASSWORD
+#            - name: POSTGRES_DB
+#              valueFrom:
+#                secretKeyRef:
+#                  name: ride-postgres-secret
+#                  key: POSTGRES_DB
+#          resources:
+#            limits:
+#              memory: 512Mi
+#            requests:
+#              memory: 256Mi
+#          readinessProbe:
+#            exec:
+#              command: ["pg_isready", "-U", "user"]
+#            initialDelaySeconds: 15
+#            periodSeconds: 10
+#            failureThreshold: 6
+#          livenessProbe:
+#            exec:
+#              command: ["pg_isready", "-U", "user"]
+#            initialDelaySeconds: 30
+#            periodSeconds: 10
+#            failureThreshold: 6
+#          volumeMounts:
+#            - name: data
+#              mountPath: /var/lib/postgresql/data
+#  volumeClaimTemplates:
+#    - metadata:
+#        name: data
+#      spec:
+#        accessModes:
+#          - ReadWriteOnce
+#        resources:
+#          requests:
+#            storage: 1Gi

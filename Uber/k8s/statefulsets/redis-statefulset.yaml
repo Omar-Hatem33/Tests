@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: uber
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:latest
+          # Same command as docker-compose: enables password auth and sets memory policy
+          command:
+            - redis-server
+            - "--requirepass"
+            - "redispass"
+            - "--maxmemory"
+            - "200mb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
+          ports:
+            - containerPort: 6379
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              memory: 128Mi
+          # redis-cli ping returns PONG when Redis is ready
+          # Must use -a flag because we set requirepass
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "-a", "redispass", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "-a", "redispass", "ping"]
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 512Mi

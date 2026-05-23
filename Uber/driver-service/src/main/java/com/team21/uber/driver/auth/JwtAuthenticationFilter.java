@@ -71,6 +71,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 List.of(new SimpleGrantedAuthority("ROLE_" + role)));
         SecurityContextHolder.getContext().setAuthentication(auth);
 
-        filterChain.doFilter(request, response);
+        // M3: inject X-User-Id from JWT so controllers can read caller identity
+        // (mirrors what the API gateway does when deployed)
+        final Long userId = ctx.getUserId();
+        if (userId != null) {
+            HttpServletRequest mutatedRequest = new jakarta.servlet.http.HttpServletRequestWrapper(request) {
+                @Override
+                public String getHeader(String name) {
+                    if ("X-User-Id".equalsIgnoreCase(name)) {
+                        return userId.toString();
+                    }
+                    return super.getHeader(name);
+                }
+
+                @Override
+                public java.util.Enumeration<String> getHeaders(String name) {
+                    if ("X-User-Id".equalsIgnoreCase(name)) {
+                        return java.util.Collections.enumeration(
+                                java.util.Collections.singletonList(userId.toString()));
+                    }
+                    return super.getHeaders(name);
+                }
+            };
+            filterChain.doFilter(mutatedRequest, response);
+        } else {
+            filterChain.doFilter(request, response);
+        }
     }
 }

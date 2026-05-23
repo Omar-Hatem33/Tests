@@ -925,6 +925,7 @@
 package com.team21.uber.user.service;
 
 import com.team21.uber.contracts.dto.RideSummaryDTO;
+import com.team21.uber.contracts.feign.PaymentServiceClient;
 import com.team21.uber.contracts.feign.RideServiceClient;
 import com.team21.uber.user.auth.dto.UpdateRoleRequest;
 import com.team21.uber.user.cache.CacheInvalidator;
@@ -937,10 +938,12 @@ import com.team21.uber.user.repository.*;
 import feign.FeignException;
 import jakarta.transaction.Transactional;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -954,19 +957,22 @@ public class UserService {
     private final EventPublisher eventPublisher;
     private final UserEventPublisher userEventPublisher;
     private final RideServiceClient rideServiceClient;
+    private final PaymentServiceClient paymentServiceClient;
 
     public UserService(UserRepository repo,
                        SavedAddressRepository savedAddressRepository,
                        CacheInvalidator cacheInvalidator,
                        EventPublisher eventPublisher,
                        UserEventPublisher userEventPublisher,
-                       RideServiceClient rideServiceClient) {
+                       RideServiceClient rideServiceClient,
+                       PaymentServiceClient paymentServiceClient) {
         this.userRepository = repo;
         this.savedAddressRepository = savedAddressRepository;
         this.cacheInvalidator = cacheInvalidator;
         this.eventPublisher = eventPublisher;
         this.userEventPublisher = userEventPublisher;
         this.rideServiceClient = rideServiceClient;
+        this.paymentServiceClient=paymentServiceClient;
     }
 
     // ── S1-F1: Search Users ───────────────────────────────────────────────────
@@ -1119,10 +1125,24 @@ public class UserService {
         if (lang == null || lang.trim().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lang must not be blank");
         }
-        return userRepository.findUsersByLanguageAndMinCompletedRides(
-                lang.trim(),
-                minRides == null ? 0 : minRides
-        );
+        int threshold = (minRides == null ? 0 : minRides);
+        //limit to 100 is applied on the query
+        List<User> candidates = userRepository.findUsersByLanguagePreference(lang.trim());
+
+        return candidates.stream()
+                .filter(user -> {
+                    try {
+                        long count = rideServiceClient.getUserCompletedRideCount(user.getId());
+                        return count >= threshold;
+                    } catch (FeignException e) {
+                        return false;
+                    }
+                })
+                .collect(Collectors.toList());
+//        return userRepository.findUsersByLanguageAndMinCompletedRides(
+//                lang.trim(),
+//                minRides == null ? 0 : minRides
+//        );
     }
 
     // ── S1-F3: Ride Summary ───────────────────────────────────────────────────
@@ -1167,16 +1187,42 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must not be after endDate");
         }
 
-        return userRepository.findTopRidersBySpending(startDate, endDate, limit)
-                .stream()
-                .map(row -> TopRiderDTO.builder()
-                        .userId(((Number) row[0]).longValue())
-                        .name((String) row[1])
-                        .totalSpent(((Number) row[2]).doubleValue())
-                        .rideCount(((Number) row[3]).longValue())
-                        .build()
-                )
+        List<User> candidates = userRepository.findAll(PageRequest.of(0, 100)).getContent();
+
+        String start = startDate.toLocalDate().toString(); // "2026-03-01"
+        String end   = endDate.toLocalDate().toString();   // "2026-03-31"
+
+        return candidates.stream()
+                .map(user -> {
+                    BigDecimal total;
+                    try {
+                        total = paymentServiceClient.getUserPaymentTotal(user.getId(), start, end);
+                    } catch (FeignException.NotFound e) {
+                        total = BigDecimal.ZERO;
+                    } catch (FeignException e) {
+                        total = BigDecimal.ZERO;
+                    }
+                    return TopRiderDTO.builder()
+                            .userId(user.getId())
+                            .name(user.getName())
+                            .totalSpent(total.doubleValue())
+                            .build();
+                })
+                .filter(dto -> dto.getTotalSpent() > 0)
+                .sorted(Comparator.comparingDouble(TopRiderDTO::getTotalSpent).reversed())
+                .limit(limit)
                 .collect(Collectors.toList());
+
+//        return userRepository.findTopRidersBySpending(startDate, endDate, limit)
+//                .stream()
+//                .map(row -> TopRiderDTO.builder()
+//                        .userId(((Number) row[0]).longValue())
+//                        .name((String) row[1])
+//                        .totalSpent(((Number) row[2]).doubleValue())
+//                        .rideCount(((Number) row[3]).longValue())
+//                        .build()
+//                )
+//                .collect(Collectors.toList());
     }
 
     // ── S1-F7: Set Default Saved Address ──────────────────────────────────────

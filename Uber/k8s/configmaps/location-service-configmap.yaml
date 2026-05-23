@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: location-service-config
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://location-postgres:5432/uberdb-locations
+
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+
+  SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/ubermongo
+
+  SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_RABBITMQ_PORT: "5672"
+
+  SPRING_CASSANDRA_KEYSPACE_NAME: uberks
+  SPRING_CASSANDRA_CONTACT_POINTS: cassandra
+  SPRING_CASSANDRA_PORT: "9042"
+  SPRING_CASSANDRA_LOCAL_DATACENTER: datacenter1
+  SPRING_CASSANDRA_REQUEST_TIMEOUT: 30s
+
+  FEIGN_USER_SERVICE_URL: http://user-service:8080
+  FEIGN_DRIVER_SERVICE_URL: http://driver-service:8080
+  FEIGN_RIDE_SERVICE_URL: http://ride-service:8080
+  FEIGN_LOCATION_SERVICE_URL: http://location-service:8080
+  FEIGN_PAYMENT_SERVICE_URL: http://payment-service:8080

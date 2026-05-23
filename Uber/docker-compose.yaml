@@ -1,4 +1,6 @@
 services:
+
+  # ─── Shared legacy postgres (still used by user/driver/location/payment until their M3 slices update) ───
   postgres:
     image: postgres:17
     container_name: uber-postgres
@@ -16,6 +18,45 @@ services:
       timeout: 10s
       retries: 30
       start_period: 120s
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
+    depends_on:
+      user-service:
+        condition: service_started
+      driver-service:
+        condition: service_started
+      ride-service:
+        condition: service_started
+      location-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+
+  ride-postgres:
+    image: postgres:17
+    container_name: uber-ride-postgres
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: postgrespass
+      POSTGRES_DB: uberdb-rides
+    volumes:
+      - ride-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d uberdb-rides" ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
+
+
 
   mongo:
     image: mongo:latest
@@ -110,7 +151,9 @@ services:
     ports:
       - "8081:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-postgres:5432/uberdb-users
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PASSWORD: redispass
@@ -118,11 +161,15 @@ services:
       JWT_EXPIRATION: 86400000
       JAVA_TOOL_OPTIONS: "-XX:TieredStopAtLevel=1 -Xshare:auto"
     depends_on:
-      postgres:
+      user-postgres:
         condition: service_healthy
+#      postgres:
+#        condition: service_healthy
       mongo:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   driver-service:
@@ -135,6 +182,11 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PASSWORD: redispass
       SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      SPRING_LAZY_INIT: "false"
       JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
       JWT_EXPIRATION: 86400000
     depends_on:
@@ -146,13 +198,30 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+#  ride-service:
+#    image: node:18-alpine
+#    container_name: uber-ride-service
+#    working_dir: /app
+#    volumes:
+#      - ./mock-ride-service:/app
+#    command: node index.js
+#    ports:
+#      - "8083:8080"
 
   ride-service:
     build: ./ride-service
+    container_name: uber-ride-service
     ports:
       - "8083:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      # M3: isolated postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://ride-postgres:5432/uberdb-rides
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: postgrespass
+      # NoSQL — unchanged from M2
       SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PASSWORD: redispass
@@ -160,10 +229,23 @@ services:
       SPRING_NEO4J_URI: bolt://neo4j:7687
       SPRING_NEO4J_AUTHENTICATION_USERNAME: neo4j
       SPRING_NEO4J_AUTHENTICATION_PASSWORD: neo4jpass
+      # M3: RabbitMQ
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      # M3: Feign client URLs
+      FEIGN_DRIVER_SERVICE_URL: http://driver-service:8080
+      FEIGN_USER_SERVICE_URL: http://user-service:8080
+      FEIGN_LOCATION_SERVICE_URL: http://location-service:8080
+      FEIGN_PAYMENT_SERVICE_URL: http://payment-service:8080
+      # Auth
       JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
       JWT_EXPIRATION: 86400000
     depends_on:
-      postgres:
+      ride-postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -171,6 +253,8 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+  #      rabbitmq:
+  #        condition: service_healthy
 
   location-service:
     build: ./location-service
@@ -200,25 +284,86 @@ services:
     ports:
       - "8085:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/uberdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://payment-postgres:5432/uberdb-payments
       SPRING_DATA_MONGODB_URI: mongodb://root:rootpass@mongo:27017/ubermongo?authSource=admin
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PASSWORD: redispass
+      SPRING_RABBITMQ_HOST: rabbitmq
       JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckp3dEF1dGhlbnRpY2F0aW9u
       JWT_EXPIRATION: 86400000
     depends_on:
-      postgres:
+      payment-postgres:
         condition: service_healthy
       mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
-      user-service:
-        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+  # ── NEW: RabbitMQ for M3 event-driven saga ──────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: uber-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  user-postgres:
+    image: postgres:17
+    container_name: uber-user-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-users
+    volumes:
+      - user-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d uberdb-users" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── NEW: Isolated PostgreSQL for payment-service (M3 DB isolation) ──
+  payment-postgres:
+    image: postgres:17
+    container_name: uber-payment-postgres
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uberdb-payments
+    volumes:
+      - payment-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d uberdb-payments" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 volumes:
   pgdata:
+  user-pgdata:
+  ride-pgdata:       # M3: ride-service isolated postgres volume
+  rabbitmq-data:     # M3: RabbitMQ persistent storage
   mongo-data:
   es-data:
   neo4j-data:
   cassandra-data:
+  payment-pgdata:

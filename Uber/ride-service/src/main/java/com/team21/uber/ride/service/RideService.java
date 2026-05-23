@@ -1,6 +1,8 @@
 package com.team21.uber.ride.service;
 
 import java.time.LocalDate;
+
+import com.team21.uber.contracts.events.RideCancelledEvent;
 import com.team21.uber.ride.dto.AddStopRequest;
 import com.team21.uber.ride.dto.RideAnalyticsDTO;
 import com.team21.uber.ride.dto.FareEstimateDTO;
@@ -14,7 +16,8 @@ import com.team21.uber.ride.repository.RideRepository;
 import com.team21.uber.ride.repository.RideStopRepository;
 import com.team21.uber.ride.repository.RideEventRepository;
 import com.team21.uber.ride.repository.UserNodeRepository;
-import com.team21.uber.ride.messaging.RideEventPublisher;
+import com.team21.uber.ride.messaging.publishers.RideEventPublisher;
+import com.team21.uber.ride.saga.SagaTriggerService;
 import com.team21.uber.contracts.dto.DriverDTO;
 import com.team21.uber.contracts.dto.UserDTO;
 import com.team21.uber.contracts.events.RidePlacedEvent;
@@ -43,6 +46,9 @@ import java.util.HashMap;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.concurrent.CopyOnWriteArrayList;
+import com.team21.uber.ride.dto.RideSummaryDTO;
+import com.team21.uber.ride.dto.DriverRideSummaryDTO;
+
 
 @Service
 public class RideService {
@@ -58,6 +64,8 @@ public class RideService {
     private final DriverServiceClient driverServiceClient;
     private final RideEventPublisher rideEventPublisher;
     private final UserServiceClient userServiceClient;
+    private final SagaTriggerService sagaTriggerService;  // S3-F4 saga pre-checks + publish
+    private final com.team21.uber.contracts.lock.RedisLockService redisLockService;
 
     private final List<EntityObserver> observers = new CopyOnWriteArrayList<>();
 
@@ -70,7 +78,9 @@ public class RideService {
                        org.springframework.beans.factory.ObjectProvider<Driver> neo4jDriverProvider,
                        DriverServiceClient driverServiceClient,
                        RideEventPublisher rideEventPublisher,
-                       UserServiceClient userServiceClient) {
+                       UserServiceClient userServiceClient,
+                       SagaTriggerService sagaTriggerService,
+                       com.team21.uber.contracts.lock.RedisLockService redisLockService) {
         this.rideRepository = rideRepository;
         this.rideStopRepository = rideStopRepository;
         this.userNodeRepository = userNodeRepository;
@@ -80,13 +90,13 @@ public class RideService {
         this.driverServiceClient = driverServiceClient;
         this.rideEventPublisher = rideEventPublisher;
         this.userServiceClient = userServiceClient;
+        this.sagaTriggerService = sagaTriggerService;
+        this.redisLockService = redisLockService;
 
-        // Register the GoF Observer
         MongoEventLogger logger = new MongoEventLogger(rideEventRepository, EventType.RIDE);
         registerObserver(logger);
     }
 
-    // --- Observer pattern methods ---
     public void registerObserver(EntityObserver observer) {
         observers.add(observer);
     }
@@ -137,53 +147,61 @@ public class RideService {
                 .toList();
     }
 
-    // ── S3-F2: Assign Driver (M3 refactored — Feign + RabbitMQ) ──────────
+    // ── S3-F2: Assign Driver (Feign + RabbitMQ + Redis lock) ─────────────────
     @Transactional
     public Ride assignDriver(Long rideId, Long driverId) {
-        Ride ride = rideRepository.findById(rideId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
-
-        if (ride.getStatus() != RideStatus.REQUESTED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not in REQUESTED status");
+        String lockKey = "driver::lock::" + driverId;
+        String token = redisLockService.tryAcquire(lockKey, java.time.Duration.ofSeconds(10));
+        if (token == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Driver " + driverId + " is being assigned by another request");
         }
-
-        DriverDTO driver;
         try {
-            log.info("Calling DriverServiceClient.getDriver with driverId={}", driverId);
-            driver = driverServiceClient.getDriver(driverId);
-            log.info("DriverServiceClient.getDriver returned driver id={}, status={}", driver.id(), driver.status());
-        } catch (FeignException.NotFound e) {
-            log.warn("Driver not found via Feign for driverId={}", driverId);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
-        } catch (FeignException e) {
-            log.error("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "Driver service temporarily unavailable");
+            Ride ride = rideRepository.findById(rideId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
+            if (ride.getStatus() != RideStatus.REQUESTED) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ride is not in REQUESTED status");
+            }
+
+            DriverDTO driver;
+            try {
+                log.info("Calling DriverServiceClient.getDriver with driverId={}", driverId);
+                driver = driverServiceClient.getDriver(driverId);
+            } catch (FeignException.NotFound e) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
+            } catch (FeignException e) {
+                log.error("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "Driver service temporarily unavailable");
+            }
+
+            if (!"AVAILABLE".equals(driver.status())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
+            }
+
+            ride.setDriverId(driverId);
+            ride.setStatus(RideStatus.ACCEPTED);
+            Ride saved = rideRepository.save(ride);
+
+            rideEventPublisher.publishRidePlaced(
+                    new RidePlacedEvent(saved.getId(), saved.getUserId(), driverId)
+            );
+
+            Map<String, Object> eventPayload = new HashMap<>();
+            eventPayload.put("rideId", saved.getId());
+            Map<String, Object> details = new HashMap<>();
+            details.put("rideId", saved.getId());
+            details.put("driverId", driverId);
+            details.put("userId", saved.getUserId());
+            details.put("status", "ACCEPTED");
+            eventPayload.put("details", details);
+            notifyObservers("DRIVER_ASSIGNED", eventPayload);
+
+            return saved;
+        } finally {
+            redisLockService.release(lockKey, token);
         }
-
-        if (!"AVAILABLE".equals(driver.status())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Driver is not available");
-        }
-
-        ride.setDriverId(driverId);
-        ride.setStatus(RideStatus.ACCEPTED);
-        Ride saved = rideRepository.save(ride);
-
-        rideEventPublisher.publishRidePlaced(
-                new RidePlacedEvent(saved.getId(), saved.getUserId(), driverId)
-        );
-
-        Map<String, Object> eventPayload = new HashMap<>();
-        eventPayload.put("rideId", saved.getId());
-        Map<String, Object> details = new HashMap<>();
-        details.put("rideId", saved.getId());
-        details.put("driverId", driverId);
-        details.put("userId", saved.getUserId());
-        details.put("status", "ACCEPTED");
-        eventPayload.put("details", details);
-        notifyObservers("DRIVER_ASSIGNED", eventPayload);
-
-        return saved;
     }
 
     // S3-F3
@@ -213,29 +231,43 @@ public class RideService {
                 surgeMultiplier);
     }
 
-    // S3-F4
+    // ── S3-F4: Complete Ride ──────────────────────────────────────────────────
+    // Saga pre-checks (user ACTIVE, driver BUSY, GPS ping) + publish ride.completed
+    // are now the responsibility of SagaTriggerService (saga/ package per §12 spec).
     @Transactional
     public Ride completeRide(Long id) {
+        // 1. Find ride → 404 if not found
         Ride ride = rideRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
+        // 2. Validate status = IN_PROGRESS → 400 if not
         if (ride.getStatus() != RideStatus.IN_PROGRESS) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Ride must be IN_PROGRESS to complete. Current status: " + ride.getStatus());
         }
-        ride.setStatus(RideStatus.COMPLETED);
-        ride.setCompletedAt(LocalDateTime.now());
+
+        if (ride.getDriverId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Ride has no assigned driver — cannot complete");
+        }
+
+        // 3. Calculate fare if unset (local — no cross-service call)
         if (ride.getFare() == null) {
             double distance = Math.sqrt(
                     Math.pow(ride.getDropoffLatitude() - ride.getPickupLatitude(), 2) +
                             Math.pow(ride.getDropoffLongitude() - ride.getPickupLongitude(), 2)) * 111;
             ride.setFare(Math.round(15.0 * distance * 100.0) / 100.0);
         }
-        Ride saved = rideRepository.save(ride);
-        if (saved.getDriverId() != null) {
-            rideRepository.setDriverAvailable(saved.getDriverId());
-        }
-        rideRepository.createPendingPayment(saved.getId(), saved.getUserId(), saved.getFare());
-        return saved;
+
+        // 4. Prepare the entity — status + timestamp (not yet persisted)
+        ride.setStatus(RideStatus.COMPLETED);
+        ride.setCompletedAt(LocalDateTime.now());
+
+        // 5. Delegate to SagaTriggerService:
+        //    → runs 3 Feign pre-checks (throws 400/503 on failure — ride stays IN_PROGRESS)
+        //    → saves ride as COMPLETED
+        //    → publishes ride.completed to trigger payment + driver sagas
+        return sagaTriggerService.triggerRideCompletion(ride);
     }
 
     // S3-F5
@@ -274,15 +306,20 @@ public class RideService {
     public void cancelRide(Long id) {
         Ride ride = rideRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
+
         if (ride.getStatus() != RideStatus.REQUESTED && ride.getStatus() != RideStatus.ACCEPTED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Only REQUESTED or ACCEPTED rides can be cancelled");
+                    "Only REQUESTED or ACCEPTED rides can be cancelled. Current status: " + ride.getStatus());
         }
+
         ride.setStatus(RideStatus.CANCELLED);
-        if (ride.getDriverId() != null) {
-            rideRepository.updateDriverStatus(ride.getDriverId(), "AVAILABLE");
-        }
-        rideRepository.save(ride);
+        Ride saved = rideRepository.save(ride);
+        log.info("S3-F7: Ride {} marked CANCELLED", id);
+
+        rideEventPublisher.publishRideCancelled(
+                new RideCancelledEvent(saved.getId(), saved.getUserId(), saved.getDriverId(), "user_requested")
+        );
+        log.info("S3-F7: Published ride.cancelled for ride {} reason=user_requested", id);
     }
 
     // S3-F8
@@ -340,13 +377,11 @@ public class RideService {
                 completedStops);
     }
 
-    // ── S3-F11: Record User-Driver Riding Pattern (M3 refactored — Feign) ──
+    // ── S3-F11: Record User-Driver Riding Pattern ─────────────────────────────
     public Map<String, Object> recordInteraction(Long rideId) {
-        // b) Find ride by ID in PostgreSQL
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ride not found"));
 
-        // c) Verify ride status is COMPLETED
         if (ride.getStatus() != RideStatus.COMPLETED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Only COMPLETED rides can record interactions. Current status: " + ride.getStatus());
@@ -355,12 +390,16 @@ public class RideService {
         Long userId = ride.getUserId();
         Long driverId = ride.getDriverId();
 
+        if (driverId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Ride has no assigned driver — cannot record interaction");
+        }
+
         Driver idempDriver = neo4jDriverProvider.getIfAvailable();
         if (idempDriver == null) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Neo4j unavailable");
         }
 
-        // d) Idempotency check — uses Neo4j only, no PG mutation
         boolean alreadyRecorded = false;
         long currentCount = 0L;
         try (Session session = idempDriver.session()) {
@@ -383,14 +422,11 @@ public class RideService {
             return result;
         }
 
-        // e) M3 change: Replace native SQL with Feign calls to user-service and driver-service
         log.info("Calling UserServiceClient.getUser with userId={}", userId);
         UserDTO userDTO;
         try {
             userDTO = userServiceClient.getUser(userId);
-            log.info("UserServiceClient.getUser returned name={}", userDTO.name());
         } catch (FeignException.NotFound e) {
-            log.warn("User not found via Feign for userId={}", userId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         } catch (FeignException e) {
             log.error("Feign call to user-service failed for userId={}: {}", userId, e.getMessage());
@@ -402,9 +438,7 @@ public class RideService {
         DriverDTO driverDTO;
         try {
             driverDTO = driverServiceClient.getDriver(driverId);
-            log.info("DriverServiceClient.getDriver returned name={}", driverDTO.name());
         } catch (FeignException.NotFound e) {
-            log.warn("Driver not found via Feign for driverId={}", driverId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found");
         } catch (FeignException e) {
             log.error("Feign call to driver-service failed for driverId={}: {}", driverId, e.getMessage());
@@ -418,10 +452,6 @@ public class RideService {
                 ? (String) driverDTO.vehicleDetails().getOrDefault("vehicleType", "UNKNOWN")
                 : "UNKNOWN";
 
-        log.info("recordInteraction resolved userId={} userName={} driverId={} driverName={} vehicleType={}",
-                userId, userName, driverId, driverName, vehicleType);
-
-        // f) Merge nodes and relationship in Neo4j (raw Bolt Driver)
         int rideCount = 1;
         Driver driver = neo4jDriverProvider.getIfAvailable();
         if (driver == null) {
@@ -460,7 +490,6 @@ public class RideService {
                     "Neo4j write failed: " + ex.getMessage());
         }
 
-        // g) Log INTERACTION_RECORDED to MongoDB via Observer (non-idempotent path only)
         Map<String, Object> eventPayload = new HashMap<>();
         eventPayload.put("rideId", rideId);
         Map<String, Object> details = new HashMap<>();
@@ -471,10 +500,8 @@ public class RideService {
         eventPayload.put("details", details);
         notifyObservers("INTERACTION_RECORDED", eventPayload);
 
-        // Invalidate S3-F12 recommendation cache (wildcard per §4.4.4)
         cacheService.evictByPattern("ride-service::S3-F12::*");
 
-        // h) Return 200 with confirmation
         Map<String, Object> resultMap = new HashMap<>();
         resultMap.put("message", "Interaction recorded successfully");
         resultMap.put("rideId", rideId);
@@ -484,29 +511,25 @@ public class RideService {
         return resultMap;
     }
 
-    // Used by S3-F12 controller for user existence check (still local SQL until S3-F12 is refactored)
-    public String findUserName(Long userId) {
-        try { return rideRepository.findUserNameById(userId); }
-        catch (Exception e) { return null; }
-    }
-
-    public boolean userNodeExists(Long userId) {
-        Driver d = neo4jDriverProvider.getIfAvailable();
-        if (d == null) return false;
-        try (Session s = d.session()) {
-            Result r = s.run("MATCH (u:User {userId: $userId}) RETURN count(u) > 0 AS exists",
-                    Map.of("userId", userId));
-            if (r.hasNext()) return r.next().get("exists").asBoolean(false);
-            return false;
-        } catch (Exception e) { return false; }
-    }
-
-    // S3-F12: recommendations via Neo4j collaborative filtering
+    // ── S3-F12: Recommendations ───────────────────────────────────────────────
     public List<Map<String, Object>> getRecommendations(Long userId, int limit) {
+        log.info("Calling UserServiceClient.getUser for recommendations userId={}", userId);
+        try {
+            userServiceClient.getUser(userId);
+        } catch (FeignException.NotFound e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found: " + userId);
+        } catch (FeignException e) {
+            log.error("Feign call to user-service failed for userId={}: {}", userId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "User service temporarily unavailable");
+        }
+
         Neo4jClient neo4j = neo4jClientProvider.getIfAvailable();
         if (neo4j == null) {
             return new ArrayList<>();
         }
+
+        List<Map<String, Object>> candidates;
         try {
             java.util.Collection<Map<String, Object>> rows = neo4j.query(
                             "MATCH (u:User {userId: $userId})-[:RODE_WITH]->(d:Driver) " +
@@ -517,31 +540,169 @@ public class RideService {
                                     "MATCH (other)-[r2:RODE_WITH]->(rec:Driver) " +
                                     "WHERE NOT rec.driverId IN userDrivers " +
                                     "WITH rec, sum(r2.rideCount) AS score " +
-                                    "RETURN rec.driverId AS driverId, rec.name AS name, rec.vehicleType AS vehicleType, score " +
+                                    "RETURN rec.driverId AS driverId, score " +
                                     "ORDER BY score DESC LIMIT $limit")
                     .bind(userId).to("userId")
-                    .bind((long) limit).to("limit")
+                    .bind((long) Math.min(limit, 100)).to("limit")
                     .fetch()
                     .all();
-            List<Map<String, Object>> out = new ArrayList<>();
-            for (Map<String, Object> row : rows) {
-                Map<String, Object> dto = new HashMap<>();
-                Object did = row.get("driverId");
-                dto.put("driverId", did instanceof Number n ? n.longValue() : did);
-                dto.put("name", row.get("name"));
-                dto.put("vehicleType", row.get("vehicleType"));
-                Object sc = row.get("score");
-                dto.put("score", sc instanceof Number n ? n.longValue() : 0L);
-                out.add(dto);
-            }
-            return out;
+            candidates = new ArrayList<>(rows);
         } catch (Exception ex) {
             log.warn("Recommendations Neo4j query failed for user={}: {}", userId, ex.toString());
             return new ArrayList<>();
         }
+
+        List<Map<String, Object>> enriched = new ArrayList<>();
+        for (Map<String, Object> candidate : candidates) {
+            Object did = candidate.get("driverId");
+            Long candidateDriverId = (did instanceof Number n) ? n.longValue() : null;
+            if (candidateDriverId == null) continue;
+
+            Object sc = candidate.get("score");
+            long score = (sc instanceof Number n) ? n.longValue() : 0L;
+
+            try {
+                DriverDTO driverDTO = driverServiceClient.getDriver(candidateDriverId);
+                String vehicleType = (driverDTO.vehicleDetails() != null)
+                        ? (String) driverDTO.vehicleDetails().getOrDefault("vehicleType", "UNKNOWN")
+                        : "UNKNOWN";
+
+                Map<String, Object> dto = new HashMap<>();
+                dto.put("driverId", candidateDriverId);
+                dto.put("name", driverDTO.name());
+                dto.put("vehicleType", vehicleType);
+                dto.put("score", score);
+                enriched.add(dto);
+            } catch (FeignException.NotFound e) {
+                log.warn("Driver {} no longer exists in driver-service, skipping recommendation",
+                        candidateDriverId);
+            } catch (FeignException e) {
+                log.warn("driver-service unavailable for driverId={}: {}", candidateDriverId, e.getMessage());
+                Map<String, Object> dto = new HashMap<>();
+                dto.put("driverId", candidateDriverId);
+                dto.put("name", "Unknown");
+                dto.put("vehicleType", "UNKNOWN");
+                dto.put("score", score);
+                enriched.add(dto);
+            }
+        }
+
+        return enriched;
     }
 
-    // ── Ride CRUD ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  M3 Internal methods — serve the 6 Feign-facing endpoints
+//  All read from ride-postgres via existing repository methods
+//  No Feign calls here — ride-service owns this data
+// ══════════════════════════════════════════════════════════════
+
+    // Called by user-service S1-F3 via Feign
+    public RideSummaryDTO getUserRideSummary(Long userId) {
+        log.info("Building ride summary for userId={}", userId);
+
+        // Uses existing getUserRideSummary native query
+        List<Object[]> rows = rideRepository.getUserRideSummary(userId);
+        if (rows.isEmpty()) {
+            return RideSummaryDTO.builder()
+                    .userId(userId).totalRides(0).completedRides(0)
+                    .cancelledRides(0).totalSpent(0.0).averageFare(0.0)
+                    .build();
+        }
+        Object[] r = rows.get(0);
+        return RideSummaryDTO.builder()
+                .userId(userId)
+                .totalRides(((Number) r[0]).longValue())
+                .completedRides(((Number) r[1]).longValue())
+                .cancelledRides(((Number) r[2]).longValue())
+                .totalSpent(((Number) r[3]).doubleValue())
+                .averageFare(((Number) r[4]).doubleValue())
+                .build();
+    }
+
+    // Called by user-service S1-F4 via Feign
+// Active = statuses that block deactivation per spec §3
+    public int getActiveRideCountForUser(Long userId) {
+        log.info("Counting active rides for userId={}", userId);
+        long count = rideRepository.countByUserIdAndStatusIn(
+                userId,
+                List.of(
+                        RideStatus.REQUESTED,
+                        RideStatus.ACCEPTED,
+                        RideStatus.IN_PROGRESS,
+                        RideStatus.COMPLETED,
+                        RideStatus.PAYMENT_PENDING
+                )
+        );
+        return (int) count;
+    }
+
+    // Called by user-service S1-F9 via Feign
+// Truly completed = COMPLETED or PAID per spec §3
+    public long getCompletedRideCountForUser(Long userId) {
+        log.info("Counting completed rides for userId={}", userId);
+        return rideRepository.countByUserIdAndStatusIn(
+                userId,
+                List.of(RideStatus.COMPLETED, RideStatus.PAID)
+        );
+    }
+
+    // Called by driver-service S2-F3 and S2-F12 via Feign
+    public DriverRideSummaryDTO getDriverRideSummary(Long driverId,
+                                                     String startDate,
+                                                     String endDate) {
+        log.info("Building driver ride summary for driverId={} start={} end={}",
+                driverId, startDate, endDate);
+
+        // Parse date strings or use sentinel values when not provided
+        // Your existing repo query uses completed_at BETWEEN start AND end
+        LocalDateTime start = (startDate != null && !startDate.isBlank())
+                ? LocalDate.parse(startDate).atStartOfDay()
+                : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime end = (endDate != null && !endDate.isBlank())
+                ? LocalDate.parse(endDate).atTime(23, 59, 59)
+                : LocalDateTime.of(2099, 12, 31, 23, 59, 59);
+
+        List<Object[]> rows = rideRepository.getDriverRideSummary(driverId, start, end);
+        if (rows.isEmpty()) {
+            return DriverRideSummaryDTO.builder()
+                    .driverId(driverId).totalRides(0)
+                    .totalEarnings(0.0).averageFare(0.0)
+                    .build();
+        }
+        Object[] r = rows.get(0);
+        return DriverRideSummaryDTO.builder()
+                .driverId(driverId)
+                .totalRides(((Number) r[0]).longValue())
+                .totalEarnings(((Number) r[1]).doubleValue())
+                .averageFare(((Number) r[2]).doubleValue())
+                .build();
+    }
+
+    // Called by driver-service S2-F4 via Feign
+// Active = statuses that block going OFFLINE per spec §5
+    public int getActiveRideCountForDriver(Long driverId) {
+        log.info("Counting active rides for driverId={}", driverId);
+        long count = rideRepository.countByDriverIdAndStatusIn(
+                driverId,
+                List.of(
+                        RideStatus.ACCEPTED,
+                        RideStatus.IN_PROGRESS,
+                        RideStatus.COMPLETED,
+                        RideStatus.PAYMENT_PENDING
+                )
+        );
+        return (int) count;
+    }
+
+    // Called by driver-service S2-F6 via Feign
+    public long getCompletedRideCountForDriver(Long driverId) {
+        log.info("Counting completed rides for driverId={}", driverId);
+        return rideRepository.countByDriverIdAndStatusIn(
+                driverId,
+                List.of(RideStatus.COMPLETED, RideStatus.PAID)
+        );
+    }
+    // ── Ride CRUD ─────────────────────────────────────────────────────────────
 
     public Ride createRide(Ride ride) {
         ride.setRequestedAt(LocalDateTime.now());

@@ -27,7 +27,7 @@ public class Payment {
     private Double amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "method", nullable = false)
+    @Column(name = "method")
     private PaymentMethod method;
 
     @Enumerated(EnumType.STRING)

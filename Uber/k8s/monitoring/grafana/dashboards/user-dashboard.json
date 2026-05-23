@@ -1,0 +1,179 @@
+{
+  "title": "User Service Dashboard",
+  "uid": "user-service-dash",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["user-service", "uber"],
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "LogQL Panel 1 — Error Rate (errors/min)",
+      "description": "Count of ERROR-level log lines per minute. Spike = something is wrong in user-service.",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=\"uber\", service=\"user-service\", level=\"ERROR\"} |= \"ERROR\" | json [1m]))",
+          "legendFormat": "errors/min",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 2,
+      "title": "LogQL Panel 2 — RabbitMQ Event Audit (published vs consumed)",
+      "description": "Lines emitted by user-service publishers and consumers filtered by routing key. Shows user.registered/user.deactivated published and ride.completed/ride.cancelled consumed.",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (routingKey) (count_over_time({app=\"uber\", service=\"user-service\"} |= \"Published\" | json | routingKey =~ \"user\\\\..+\" [1m]))",
+          "legendFormat": "published — {{routingKey}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (routingKey) (count_over_time({app=\"uber\", service=\"user-service\"} |= \"Consuming\" | json | routingKey =~ \"ride\\\\..+\" [1m]))",
+          "legendFormat": "consumed — {{routingKey}}",
+          "refId": "B"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "title": "LogQL Panel 3 — Feign Call Outcomes (success vs exception)",
+      "description": "Log lines for successful Feign responses vs FeignException catches. Detects when ride-service is degraded from user-service's perspective.",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=\"uber\", service=\"user-service\"} |= \"returned successfully\" | json [1m]))",
+          "legendFormat": "feign success/min",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=\"uber\", service=\"user-service\"} |= \"Feign call\" |= \"failed\" | json [1m]))",
+          "legendFormat": "feign exception/min",
+          "refId": "B"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "title": "PromQL Panel 1 — HTTP Request Rate (req/sec per endpoint)",
+      "description": "Requests per second hitting each user-service endpoint. Identifies which endpoints are under the most load.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (uri, method) (rate(http_server_requests_seconds_count{job=\"user-service\"}[5m]))",
+          "legendFormat": "{{method}} {{uri}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "title": "PromQL Panel 2 — HTTP Latency Percentiles (P50 / P95 / P99)",
+      "description": "P99 latency spike on /api/users/{id}/ride-summary means Feign call to ride-service is slow.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m])))",
+          "legendFormat": "P99",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m])))",
+          "legendFormat": "P95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"user-service\"}[5m])))",
+          "legendFormat": "P50",
+          "refId": "C"
+        }
+      ]
+    },
+
+    {
+      "id": 6,
+      "title": "PromQL Panel 3 — JVM Health (Heap Used / Heap Max / GC Pause / Threads)",
+      "description": "Memory pressure before OOM — heap approaching max triggers eviction. GC pause spikes cause latency. Thread exhaustion blocks request handling.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Heap Used" }, "properties": [{ "id": "unit", "value": "bytes" }] },
+          { "matcher": { "id": "byName", "options": "Heap Max" },  "properties": [{ "id": "unit", "value": "bytes" }] },
+          { "matcher": { "id": "byName", "options": "GC Pause (sec/sec)" }, "properties": [{ "id": "unit", "value": "s" }] },
+          { "matcher": { "id": "byName", "options": "Live Threads" }, "properties": [{ "id": "unit", "value": "short" }] }
+        ]
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "calcs": ["mean", "max", "last"], "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(jvm_memory_used_bytes{job=\"user-service\", area=\"heap\"})",
+          "legendFormat": "Heap Used",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(jvm_memory_max_bytes{job=\"user-service\", area=\"heap\"})",
+          "legendFormat": "Heap Max",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(jvm_gc_pause_seconds_sum{job=\"user-service\"}[5m]))",
+          "legendFormat": "GC Pause (sec/sec)",
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "jvm_threads_live_threads{job=\"user-service\"}",
+          "legendFormat": "Live Threads",
+          "refId": "D"
+        }
+      ]
+    }
+
+  ]
+}

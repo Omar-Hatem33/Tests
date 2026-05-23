@@ -14,13 +14,19 @@ public class FeignCorrelationConfig {
     @Bean
     public RequestInterceptor correlationIdInterceptor() {
         return template -> {
-            // Forward correlation ID
             String correlationId = MDC.get("correlationId");
             if (correlationId != null) {
                 template.header("X-Correlation-ID", correlationId);
             }
+            String userId = MDC.get("userId");
+            if (userId != null) {
+                template.header("X-User-Id", userId);
+            }
+            String userRole = MDC.get("userRole");
+            if (userRole != null) {
+                template.header("X-User-Role", userRole);
+            }
 
-            // Forward JWT token from incoming request to outgoing Feign call
             ServletRequestAttributes attributes =
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null) {

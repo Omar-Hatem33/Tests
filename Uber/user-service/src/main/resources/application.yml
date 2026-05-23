@@ -88,6 +88,23 @@ feign:
   payment-service:
     url: http://payment-service:8080
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+logging:
+  level:
+    com.team21.uber.user: TRACE
+    org.springframework.web: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    ch.qos.logback: ERROR
+
 jwt:
   secret: ${JWT_SECRET:dev-only-secret-change-me-32-chars-minimum-1234567890ABCDEF}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+

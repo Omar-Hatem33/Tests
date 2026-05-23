@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+  namespace: uber
+spec:
+  serviceName: elasticsearch
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      containers:
+        - name: elasticsearch
+          image: elasticsearch:9.0.3
+          ports:
+            - containerPort: 9200
+              name: http
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: xpack.security.enabled
+              value: "false"
+            - name: ES_JAVA_OPTS
+              value: "-Xms400m -Xmx400m"
+          resources:
+            limits:
+              memory: 1500Mi
+            requests:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health?wait_for_status=yellow&timeout=1s
+              port: 9200
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+            initialDelaySeconds: 60
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+
+
+
+#            TRY THIS IF THERE WAS AN ISSUE
+#
+#apiVersion: apps/v1
+#kind: StatefulSet
+#metadata:
+#  name: elasticsearch
+#  namespace: uber
+#spec:
+#  serviceName: elasticsearch
+#  replicas: 1
+#  selector:
+#    matchLabels:
+#      app: elasticsearch
+#  template:
+#    metadata:
+#      labels:
+#        app: elasticsearch
+#    spec:
+#      # ES needs higher vm.max_map_count — set via initContainer
+#      initContainers:
+#        - name: sysctl
+#          image: busybox
+#          command: ["sysctl", "-w", "vm.max_map_count=262144"]
+#          securityContext:
+#            privileged: true
+#      containers:
+#        - name: elasticsearch
+#          image: elasticsearch:8.13.4
+#          ports:
+#            - containerPort: 9200
+#            - containerPort: 9300
+#          env:
+#            - name: discovery.type
+#              value: single-node
+#            - name: xpack.security.enabled
+#              value: "false"
+#            # Heap capped at 512Mi — matches docker-compose ES_JAVA_OPTS
+#            - name: ES_JAVA_OPTS
+#              value: "-Xms256m -Xmx512m"
+#          resources:
+#            limits:
+#              memory: 768Mi
+#            requests:
+#              memory: 512Mi
+#          # HTTP health check: waits for cluster status yellow (minimum for single node)
+#          readinessProbe:
+#            httpGet:
+#              path: /_cluster/health?wait_for_status=yellow&timeout=1s
+#              port: 9200
+#            initialDelaySeconds: 60
+#            periodSeconds: 10
+#            failureThreshold: 10
+#          livenessProbe:
+#            httpGet:
+#              path: /_cluster/health
+#              port: 9200
+#            initialDelaySeconds: 90
+#            periodSeconds: 10
+#            failureThreshold: 10
+#          volumeMounts:
+#            - name: data
+#              mountPath: /usr/share/elasticsearch/data
+#  volumeClaimTemplates:
+#    - metadata:
+#        name: data
+#      spec:
+#        accessModes: ["ReadWriteOnce"]
+#        resources:
+#          requests:
+#            storage: 2Gi

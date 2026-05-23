@@ -1,8 +1,9 @@
 spring:
-  autoconfigure:
-    exclude:${SPRING_AUTOCONFIGURE_EXCLUDE:org.springframework.boot.mongodb.autoconfigure.MongoAutoConfiguration,org.springframework.boot.data.mongodb.autoconfigure.DataMongoAutoConfiguration,org.springframework.boot.data.mongodb.autoconfigure.DataMongoRepositoriesAutoConfiguration,org.springframework.boot.elasticsearch.autoconfigure.ElasticsearchClientAutoConfiguration,org.springframework.boot.elasticsearch.autoconfigure.ElasticsearchRestClientAutoConfiguration,org.springframework.boot.data.elasticsearch.autoconfigure.DataElasticsearchAutoConfiguration,org.springframework.boot.data.elasticsearch.autoconfigure.DataElasticsearchRepositoriesAutoConfiguration}
+
   application:
     name: driver-service
+  main:
+    lazy-initialization: ${SPRING_LAZY_INIT:true}
   datasource:
     url: jdbc:postgresql://driver-postgres:5432/uberdb-drivers
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
@@ -42,6 +43,7 @@ spring:
 
 server:
   port: 8080
+
 feign:
   # S2-EVENTS: Feign client URLs for inter-service communication
   user-service:
@@ -55,6 +57,15 @@ feign:
   payment-service:
     url: http://payment-service:8080
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus,health,info"
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 jwt:
   secret: ${JWT_SECRET:dev-only-secret-change-me-32-chars-minimum-1234567890ABCDEF}

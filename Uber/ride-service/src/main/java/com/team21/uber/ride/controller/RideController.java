@@ -16,16 +16,20 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
-import org.springframework.http.HttpStatus;
-
 
 import java.util.Map;
+import com.team21.uber.ride.dto.RideSummaryDTO;
+import com.team21.uber.ride.dto.DriverRideSummaryDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 @RestController
 @RequestMapping("api/rides")
 public class RideController {
 
     private final RideService rideService;
+    private static final Logger log = LoggerFactory.getLogger(RideController.class);
 
     public RideController(RideService rideService) {
         this.rideService = rideService;
@@ -36,7 +40,7 @@ public class RideController {
         return rideService.updateRideStatus(id, body.get("status"));
     }
 
-    // ── S3-f1 ──────────────────────────────────────────
+    // ── S3-F1 ──────────────────────────────────────────
     @GetMapping("/search")
     public List<Ride> searchRides(
             @RequestParam(required = false) String status,
@@ -84,6 +88,7 @@ public class RideController {
         LocalDateTime end = LocalDateTime.parse(endDate + "T23:59:59");
         return ResponseEntity.ok(rideService.getRideAnalytics(start, end));
     }
+
     // S3-F7
     @PutMapping("/{id}/cancel")
     public ResponseEntity<Void> cancelRide(@PathVariable Long id) {
@@ -146,7 +151,7 @@ public class RideController {
         return ResponseEntity.ok(rideService.getRideDetails(rideId));
     }
 
-    // S3-F12: recommendations
+    // S3-F12: recommendations (M3 refactored — user check via Feign in service layer)
     @GetMapping("/recommendations")
     public ResponseEntity<List<Map<String, Object>>> getRecommendations(
             @RequestParam(required = false) Long userId,
@@ -154,6 +159,7 @@ public class RideController {
         if (userId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "userId required");
         }
+        // Ownership check: userId must equal caller's uid, or caller must be ADMIN
         var auth = org.springframework.security.core.context.SecurityContextHolder
                 .getContext().getAuthentication();
         boolean isAdmin = auth != null && auth.getAuthorities().stream()
@@ -163,11 +169,7 @@ public class RideController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot view other user's recommendations");
         }
         int lim = limit != null ? limit : 5;
-        // Check user exists in postgres users table — 404 if not
-        String userName = rideService.findUserName(userId);
-        if (userName == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found: " + userId);
-        }
+        // User existence check + Neo4j traversal + Feign enrichment all happen inside the service
         List<Map<String, Object>> recs = rideService.getRecommendations(userId, lim);
         return ResponseEntity.ok(recs);
     }
@@ -181,7 +183,6 @@ public class RideController {
 
     // ── Ride CRUD ──────────────────────────────────────────
 
-    // Ride CRUD
     @PostMapping
     public ResponseEntity<Ride> createRide(@RequestBody Ride ride) {
         return ResponseEntity.status(HttpStatus.CREATED).body(rideService.createRide(ride));

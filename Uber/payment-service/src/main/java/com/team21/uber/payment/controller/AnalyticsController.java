@@ -2,6 +2,7 @@ package com.team21.uber.payment.controller;
 
 import com.team21.uber.payment.dto.VehicleTypeRevenueDTO;
 import com.team21.uber.payment.service.AnalyticsService;
+import com.team21.uber.payment.service.PaymentAnalyticsService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,9 +17,9 @@ import java.util.List;
 @RequestMapping("/api/payments/analytics")
 public class AnalyticsController {
 
-    private final AnalyticsService analyticsService;
+    private final PaymentAnalyticsService analyticsService;
 
-    public AnalyticsController(AnalyticsService analyticsService) {
+    public AnalyticsController(PaymentAnalyticsService analyticsService) {
         this.analyticsService = analyticsService;
     }
 
@@ -44,7 +45,7 @@ public class AnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
 
         List<VehicleTypeRevenueDTO> result =
-                analyticsService.getFareRevenueByVehicleType(startDate, endDate);
+                analyticsService.getRevenueByVehicleType(startDate.toString(), endDate.toString());
 
         return ResponseEntity.ok(result);
     }

@@ -115,7 +115,7 @@ public class RideEventConsumer {
             Optional<Payment> paymentOpt = paymentRepository
                     .findByRideIdAndStatusIn(
                             event.rideId(),
-                            List.of(PaymentStatus.PENDING, PaymentStatus.COMPLETED)
+                            List.of(PaymentStatus.PENDING, PaymentStatus.COMPLETED, PaymentStatus.FAILED)
                     );
 
             if (paymentOpt.isEmpty()) {
@@ -125,28 +125,35 @@ public class RideEventConsumer {
 
             Payment payment = paymentOpt.get();
 
-            // Idempotency — skip if already refunded
             if (payment.getStatus() == PaymentStatus.REFUNDED) {
                 log.info("Payment {} already refunded — skipping", payment.getId());
                 return;
             }
 
-            // Reuse M2 S5-F12 Strategy refund logic
-            RefundRequestDTO refundRequest = new RefundRequestDTO();
-            refundRequest.setReason("ride_cancelled");
-            refundRequest.setRefundSurge(true);
-
-            var refundResponse = paymentService.refundSurgeAdjusted(
-                    payment.getId(), refundRequest);
-
-            log.info("Payment {} saved with status=REFUNDED for rideId={}",
-                    payment.getId(), event.rideId());
+            double refundAmount;
+            if (payment.getStatus() == PaymentStatus.FAILED) {
+                // Nothing charged. Publish zero-amount refund so ride saga completes.
+                payment.setStatus(PaymentStatus.REFUNDED);
+                paymentRepository.save(payment);
+                refundAmount = 0.0;
+                log.info("Payment {} was FAILED, marked REFUNDED amount=0 rideId={}",
+                        payment.getId(), event.rideId());
+            } else {
+                RefundRequestDTO refundRequest = new RefundRequestDTO();
+                refundRequest.setReason("ride_cancelled");
+                refundRequest.setRefundSurge(true);
+                var refundResponse = paymentService.refundSurgeAdjusted(
+                        payment.getId(), refundRequest);
+                refundAmount = refundResponse.getRefundAmount();
+                log.info("Payment {} saved with status=REFUNDED for rideId={}",
+                        payment.getId(), event.rideId());
+            }
 
             paymentEventPublisher.publishPaymentRefunded(
                     new PaymentRefundedEvent(
                             payment.getId(),
                             event.rideId(),
-                            refundResponse.getRefundAmount()
+                            refundAmount
                     )
             );
 
